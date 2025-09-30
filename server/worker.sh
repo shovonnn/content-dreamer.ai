@@ -1,0 +1,1 @@
+DISABLE_GEVENT_PATCH=1 rq worker conversation_coach --with-scheduler

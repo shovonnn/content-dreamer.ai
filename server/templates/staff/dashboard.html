@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>ConversationCoach | Staff Dashboard</title>
+  {% include 'staff/_list_styles.html' %}
+</head>
+<body>
+  <div class="shell">
+    <div class="top-bar">
+      <div>
+        <h1>Staff Dashboard</h1>
+        <div class="meta">Logged in as <strong>{{ staff.name }}</strong> • Access: {{ staff.access_level }} • <a href="{{ url_for('staff_views.logout') }}">Logout</a></div>
+      </div>
+      <div class="actions">
+        {% if staff.access_level in ['editor','admin','superadmin'] %}
+        <!--Action buttons-->
+        {% endif %}
+      </div>
+    </div>
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <ul class="flash">
+          {% for category, message in messages %}
+            <li class="{{category}}">{{ message }}</li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+    {% endwith %}
+
+    <div class="panel">
+      <h2 style="margin:0 0 12px; font-size:20px; font-weight:600;">Browse</h2>
+      <div style="display:flex; gap:12px; flex-wrap:wrap;">
+        <!-- navigation pages-->
+      </div>
+    </div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,67 @@
+node_modules
+test/temp
+.sass-cache
+.tmp
+*.map
+test/bower_components/
+test
+
+*.pyc
+*.pyo
+*.swp
+*~
+.env
+.env.dev
+.env.prod
+
+# Packages
+*.egg
+*.egg-info
+build/
+eggs
+bin
+sdist
+
+#Sphinx builds
+_build
+
+# Installer logs
+pip-log.txt
+
+# Flake8 violation file
+violations.flake8.txt
+
+# Unit test / coverage reports
+.coverage
+.tox
+nosetests.xml
+__pycache__
+database.db
+
+# Sphinx
+docs/_build
+docs/source/_references
+
+# Virtual environments
+env
+env*
+venv
+venv*
+
+.webassets-cache
+.DS_Store
+*.sublime-*
+app.log
+.python-version
+.vscode/
+workspace/
+test-workspace/
+htmlcov/
+coverage.xml
+dump.rdb
+workspace-e2e/
+.idea/
+trends.txt
+ideas.json
+static/uploads
+tmp.*
