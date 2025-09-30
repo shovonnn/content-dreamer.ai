@@ -66,21 +66,19 @@ def create_app(is_testing = False):
 
     app.register_error_handler(Exception, handle_exception)
 
-    CORS(app, origins=['http://localhost:56808', 'http://localhost:*', 'https://mahfuz.ngrok.io', 'https://app.conversation_coach.app'], support_credentials=True)
+    CORS(app, origins=['*', 'http://localhost:3000', 'http://localhost:3000/', 'http://localhost:3000/*', 'https://mahfuz.ngrok.io', 'https://app.conversation_coach.app'], support_credentials=True)
     
     AdminAuth().init_app(app)
-    admin = Admin(app, name='ConversationCoach Admin')
+    admin = Admin(app, name='ContentDreamer Admin')
     admin.add_view(ModelView(User, db.session))
-    admin.add_view(ModelView(Call, db.session))  # NEW
-    admin.add_view(ModelView(RecordingChunk, db.session))
-    admin.add_view(ModelView(RecordingSession, db.session))
     
     from views import app_views
     app.register_blueprint(app_views)
     from views_auth import auth_views
     app.register_blueprint(auth_views)
-    from views_calls import bp_calls  # NEW
-    app.register_blueprint(bp_calls)
+    # Register new reports blueprint
+    from views_reports import bp_reports
+    app.register_blueprint(bp_reports)
     from views_staff import staff_views
     app.register_blueprint(staff_views)
 

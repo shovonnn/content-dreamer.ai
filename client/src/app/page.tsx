@@ -1,103 +1,79 @@
-import Image from "next/image";
+"use client";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { api } from "@/lib/apiClient";
+
+function ensureGuestId(): string {
+  if (typeof window === "undefined") return "";
+  const key = "guest_id";
+  let id = window.localStorage.getItem(key);
+  if (!id) {
+    id = crypto.randomUUID();
+    window.localStorage.setItem(key, id);
+    document.cookie = `${key}=${id}; path=/; max-age=${60 * 60 * 24 * 365}`;
+  }
+  return id;
+}
 
 export default function Home() {
-  return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+  const router = useRouter();
+  const [name, setName] = useState("");
+  const [desc, setDesc] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+  async function onSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    if (!name || !desc) {
+      setError("Please enter product name and description");
+      return;
+    }
+    setLoading(true);
+    try {
+      const guest_id = ensureGuestId();
+      const res = await api.post(`/api/reports/initiate`, { product_name: name, product_description: desc, guest_id });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || "Failed to initiate report");
+      router.push(`/report/${data.report_id}?guest_id=${encodeURIComponent(guest_id)}`);
+    } catch (err: any) {
+      setError(err.message || "Something went wrong");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <main className="min-h-screen bg-white text-gray-900">
+      <section className="relative overflow-hidden">
+        <div className="mx-auto max-w-6xl px-6 pt-16 pb-16">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-12 items-center">
+            <div>
+              <h1 className="text-5xl font-extrabold tracking-tight leading-tight">Dream up premium content ideas</h1>
+              <p className="mt-5 text-xl text-gray-600">Turn your product into scroll‑stopping articles and tweets—powered by trends, keywords, and AI.</p>
+              <ul className="mt-6 space-y-2 text-gray-700">
+                <li>• SEO keywords from Google autocomplete</li>
+                <li>• Trends and tweets from Twitter</li>
+                <li>• Medium tags and top articles</li>
+              </ul>
+            </div>
+            <div>
+              <form onSubmit={onSubmit} className="rounded-2xl border border-gray-200 p-6 shadow-sm">
+                <h2 className="text-2xl font-semibold">Try it free</h2>
+                <p className="text-sm text-gray-500 mt-1">No login required for your first report.</p>
+                <label className="block mt-5 text-sm font-medium">Product name</label>
+                <input className="mt-1 w-full rounded-md border px-3 py-2" placeholder="e.g. Acme Outreach" value={name} onChange={e=>setName(e.target.value)} />
+                <label className="block mt-4 text-sm font-medium">Product description</label>
+                <textarea className="mt-1 w-full rounded-md border px-3 py-2 h-28" placeholder="What does it do? Who is it for?" value={desc} onChange={e=>setDesc(e.target.value)} />
+                {error && <p className="text-sm text-red-600 mt-3">{error}</p>}
+                <button disabled={loading} className="mt-5 inline-flex items-center justify-center rounded-md bg-black px-4 py-2 text-white hover:bg-gray-900 disabled:opacity-50">
+                  {loading ? "Generating…" : "Generate content ideas"}
+                </button>
+              </form>
+            </div>
+          </div>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
-    </div>
+      </section>
+    </main>
   );
 }

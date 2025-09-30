@@ -1,0 +1,1 @@
+gunicorn --workers 1 --worker-class geventwebsocket.gunicorn.workers.GeventWebSocketWorker --bind 0.0.0.0:5001 -m 007 "app:create_app()"
