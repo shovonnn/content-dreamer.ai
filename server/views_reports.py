@@ -27,6 +27,11 @@ def _current_user_or_none():
         return None
 
 
+def _request_guest_id():
+    # Prefer header, fallback to query param
+    return (request.headers.get('X-Guest-Id') or request.args.get('guest_id') or '').strip() or None
+
+
 @bp_reports.route('/api/plans', methods=['GET'])
 def list_plans():
     plans = get_plans()
@@ -34,6 +39,7 @@ def list_plans():
 
 
 @bp_reports.route('/api/reports/initiate', methods=['POST'])
+@bp_reports.route('/api/feeds/initiate', methods=['POST'])  # alias path using feed terminology
 def initiate_report():
     data = request.get_json(force=True, silent=True) or {}
     name = (data.get('product_name') or '').strip()
@@ -62,6 +68,7 @@ def initiate_report():
 
 
 @bp_reports.route('/api/reports/<rid>', methods=['GET'])
+@bp_reports.route('/api/feeds/<rid>', methods=['GET'])  # alias path using feed terminology
 def get_report(rid):
     rep = Report.query.get(rid)
     if not rep:
@@ -213,3 +220,96 @@ def my_limits():
     # TODO: fetch actual user subscription
     plan = next((p for p in plans if p['id'] == 'basic'), plans[0])
     return jsonify({'plan_id': plan['id'], 'limits': plan['limits']}), 200
+
+
+# -------- Products and Feeds (reports) management --------
+
+@bp_reports.route('/api/products', methods=['GET'])
+def list_products():
+    """List products for current user or guest, including latest feed summary."""
+    current_user = _current_user_or_none()
+    guest_id = _request_guest_id()
+    q = None
+    if current_user:
+        q = Product.query.filter_by(user_id=current_user.id)
+    elif guest_id:
+        q = Product.query.filter_by(guest_id=guest_id)
+    else:
+        return jsonify({'products': []}), 200
+
+    products = q.order_by(Product.created_on.desc()).all()
+    # Collect latest report per product
+    out = []
+    for p in products:
+        latest = Report.query.filter_by(product_id=p.id).order_by(Report.created_on.desc()).first()
+        out.append({
+            'id': p.id,
+            'name': p.name,
+            'description': p.description,
+            'created_on': p.created_on.isoformat() if p.created_on else None,
+            'updated_on': p.updated_on.isoformat() if p.updated_on else None,
+            'latest_feed': ({
+                'id': latest.id,
+                'status': latest.status,
+                'created_on': latest.created_on.isoformat() if latest and latest.created_on else None,
+                'completed_at': latest.completed_at.isoformat() if latest and latest.completed_at else None,
+            } if latest else None)
+        })
+    return jsonify({'products': out}), 200
+
+
+@bp_reports.route('/api/products', methods=['POST'])
+def create_product():
+    data = request.get_json(force=True, silent=True) or {}
+    name = (data.get('name') or '').strip()
+    desc = (data.get('description') or '').strip()
+    if not name or not desc:
+        abort(400, 'name and description required')
+    current_user = _current_user_or_none()
+    guest_id = _request_guest_id()
+    user_id = current_user.id if current_user else None
+    prod = Product.create(name=name, description=desc, user_id=user_id, guest_id=(None if user_id else guest_id))
+    return jsonify({
+        'id': prod.id,
+        'name': prod.name,
+        'description': prod.description,
+        'created_on': prod.created_on.isoformat() if prod.created_on else None,
+    }), 200
+
+
+def _ensure_product_access(pid: str):
+    p = Product.query.get(pid)
+    if not p:
+        abort(404)
+    current_user = _current_user_or_none()
+    guest_id = _request_guest_id()
+    if current_user and p.user_id == current_user.id:
+        return p, current_user.id, None
+    if (not current_user) and guest_id and p.guest_id == guest_id and not p.user_id:
+        return p, None, guest_id
+    abort(403)
+
+
+@bp_reports.route('/api/products/<pid>/feeds/initiate', methods=['POST'])
+def initiate_feed_for_product(pid):
+    """Create a new feed (report) for an existing product."""
+    p, user_id, guest_id = _ensure_product_access(pid)
+    # Visibility cutoff: default 5 for guests, else from plan (simplified)
+    visibility_cutoff = 5
+    rep = Report.create(product_id=p.id, user_id=user_id, guest_id=guest_id, visibility_cutoff=visibility_cutoff)
+    q.enqueue('workers.generate_report', rep.id, job_timeout='30m')
+    return jsonify({'report_id': rep.id}), 200
+
+
+@bp_reports.route('/api/products/<pid>/feeds', methods=['GET'])
+def list_product_feeds(pid):
+    p, user_id, guest_id = _ensure_product_access(pid)
+    reports = Report.query.filter_by(product_id=p.id).order_by(Report.created_on.desc()).all()
+    return jsonify({'feeds': [
+        {
+            'id': r.id,
+            'status': r.status,
+            'created_on': r.created_on.isoformat() if r.created_on else None,
+            'completed_at': r.completed_at.isoformat() if r.completed_at else None,
+        } for r in reports
+    ]}), 200

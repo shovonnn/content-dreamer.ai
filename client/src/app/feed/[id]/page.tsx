@@ -12,7 +12,7 @@ type Suggestion = {
   meta?: any | null;
 };
 
-type ReportRes = {
+type FeedRes = {
   id: string;
   status: string;
   partial: boolean;
@@ -21,31 +21,49 @@ type ReportRes = {
   steps: { step_name: string; status: string }[];
 };
 
-export default function ReportPage() {
+export default function FeedPage() {
   const params = useParams<{ id: string }>();
   const search = useSearchParams();
   const guest_id = search.get("guest_id") || "";
-  const [data, setData] = useState<ReportRes | null>(null);
+  const [data, setData] = useState<FeedRes | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
 
   useEffect(() => {
     let timer: any;
-    async function fetchReport() {
+    async function fetchFeed() {
       try {
-  const res = await api.get(`/api/reports/${params.id}?guest_id=${encodeURIComponent(guest_id)}`);
+        // Use reports endpoint, but alias exists at /api/feeds/<id>
+        const res = await api.get(`/api/feeds/${params.id}?guest_id=${encodeURIComponent(guest_id)}`);
         const json = await res.json();
-        if (!res.ok) throw new Error(json?.error || "Failed to load report");
+        if (!res.ok) throw new Error(json?.error || "Failed to load feed");
         setData(json);
         if (json.status === "queued" || json.status === "running") {
-          timer = setTimeout(fetchReport, 2000);
+          timer = setTimeout(fetchFeed, 2000);
         }
       } catch (e: any) {
         setError(e.message || "Error");
       }
     }
-    fetchReport();
+    fetchFeed();
     return () => timer && clearTimeout(timer);
   }, [params.id, guest_id]);
+
+  async function generateNewForProduct() {
+    if (!data?.product?.id) return;
+    setCreating(true);
+    setError(null);
+    try {
+      const res = await api.post(`/api/products/${data.product.id}/feeds/initiate`, {});
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.error || "Failed to initiate");
+      window.location.href = `/feed/${json.report_id}`;
+    } catch (e: any) {
+      setError(e.message || "Failed to initiate");
+    } finally {
+      setCreating(false);
+    }
+  }
 
   return (
     <main className="min-h-screen bg-white text-gray-900">
@@ -57,9 +75,13 @@ export default function ReportPage() {
           <div className="mt-6">
             <p className="text-sm text-gray-500">Status: {data.status}{data.partial ? " (partial)" : ""}</p>
             {data.product && (
-              <div className="mt-4 rounded-lg border p-4">
+              <div className="mt-4 rounded-xl border p-5 bg-gray-50">
                 <h2 className="text-xl font-semibold">{data.product.name}</h2>
                 <p className="text-gray-700 mt-2 whitespace-pre-wrap">{data.product.description}</p>
+                <div className="mt-4 flex gap-2">
+                  <button onClick={generateNewForProduct} disabled={creating} className="rounded-md bg-black text-white px-4 py-2 hover:bg-gray-900 disabled:opacity-50">{creating ? "Starting…" : "Generate new feed"}</button>
+                  <a href={`/product/${data.product.id}`} className="rounded-md border px-4 py-2 hover:bg-gray-50">Browse old feeds</a>
+                </div>
               </div>
             )}
             <div className="mt-8 space-y-4">

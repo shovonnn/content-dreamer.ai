@@ -23,8 +23,8 @@ export function Navbar() {
           <span className="font-semibold text-lg tracking-tight text-gray-900">Content Dreamer</span>
         </Link>
         <nav className="flex items-center gap-3">
+          <Link href="/dashboard" className="text-sm text-gray-900 hover:text-black">Dashboard</Link>
           <Link href="/pricing" className="text-sm text-gray-900 hover:text-black">Pricing</Link>
-          <Link href="/report/demo" className="text-sm text-gray-900 hover:text-black">Demo</Link>
           {authed ? (
             <ProfileMenu />
           ) : (

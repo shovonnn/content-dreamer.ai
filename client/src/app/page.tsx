@@ -32,10 +32,10 @@ export default function Home() {
     setLoading(true);
     try {
       const guest_id = ensureGuestId();
-      const res = await api.post(`/api/reports/initiate`, { product_name: name, product_description: desc, guest_id });
+  const res = await api.post(`/api/feeds/initiate`, { product_name: name, product_description: desc, guest_id });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || "Failed to initiate report");
-      router.push(`/report/${data.report_id}?guest_id=${encodeURIComponent(guest_id)}`);
+  router.push(`/feed/${data.report_id}?guest_id=${encodeURIComponent(guest_id)}`);
     } catch (err: any) {
       setError(err.message || "Something went wrong");
     } finally {
@@ -60,14 +60,14 @@ export default function Home() {
             <div>
               <form onSubmit={onSubmit} className="rounded-2xl border border-gray-200 p-6 shadow-sm">
                 <h2 className="text-2xl font-semibold">Try it free</h2>
-                <p className="text-sm text-gray-500 mt-1">No login required for your first report.</p>
+                <p className="text-sm text-gray-500 mt-1">No login required for your first feed.</p>
                 <label className="block mt-5 text-sm font-medium">Product name</label>
                 <input className="mt-1 w-full rounded-md border px-3 py-2" placeholder="e.g. Acme Outreach" value={name} onChange={e=>setName(e.target.value)} />
                 <label className="block mt-4 text-sm font-medium">Product description</label>
                 <textarea className="mt-1 w-full rounded-md border px-3 py-2 h-28" placeholder="What does it do? Who is it for?" value={desc} onChange={e=>setDesc(e.target.value)} />
                 {error && <p className="text-sm text-red-600 mt-3">{error}</p>}
                 <button disabled={loading} className="mt-5 inline-flex items-center justify-center rounded-md bg-black px-4 py-2 text-white hover:bg-gray-900 disabled:opacity-50">
-                  {loading ? "Generating…" : "Generate content ideas"}
+                  {loading ? "Generating…" : "Generate content feed"}
                 </button>
               </form>
             </div>
