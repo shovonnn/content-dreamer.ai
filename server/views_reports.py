@@ -83,6 +83,7 @@ def get_report(rid):
                 'source_type': s.source_type,
                 'text': s.text,
                 'rank': s.rank,
+                'meta': (json.loads(s.meta_json) if s.meta_json else None),
             } for s in rep.suggestions
         ]
         partial = False
@@ -97,6 +98,7 @@ def get_report(rid):
                 'source_type': s.source_type,
                 'text': s.text,
                 'rank': s.rank,
+                'meta': (json.loads(s.meta_json) if s.meta_json else None),
             } for s in all_guest[: (rep.visibility_cutoff or 5)]
         ]
         partial = True

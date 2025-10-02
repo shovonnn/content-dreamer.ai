@@ -46,6 +46,11 @@ def generate_report(report_id: str):
                 else:
                     s2.done(json.dumps({"warning": "SERPAPI_KEY missing", "expanded_group2": expanded_group2}))
             except Exception as e:
+                # Ensure we clear failed state before attempting to persist failure
+                try:
+                    db.session.rollback()
+                except Exception:
+                    pass
                 s2.fail(str(e))
 
             # Step 3-4: Twitter via RapidAPI (twttr)
@@ -72,15 +77,31 @@ def generate_report(report_id: str):
                     for kw in expanded_group2[:20]:
                         res = tw.search(kw, count=5)
                         tweets_by_kw_g2[kw] = res
-                    s3.done(json.dumps({
+                    # Keep payload compact to avoid exceeding DB TEXT limits
+                    def pack_res(r):
+                        try:
+                            topc = len(r.top or [])
+                            latc = len(r.latest or [])
+                            sample = (r.top[0].text if (r.top or []) else ((r.latest or [None])[0].text if (r.latest or []) else None))
+                            if sample:
+                                sample = sample[:200]
+                            return {"top_count": topc, "latest_count": latc, "sample": sample}
+                        except Exception:
+                            return {"top_count": 0, "latest_count": 0, "sample": None}
+                    payload = {
                         "trends": topics,
-                        "by_trend": tweets_by_topic,
-                        "g1": tweets_by_kw_g1,
-                        "g2": tweets_by_kw_g2,
-                    }))
+                        "by_trend": {k: pack_res(v) for k, v in tweets_by_topic.items()},
+                        "g1": {k: pack_res(v) for k, v in tweets_by_kw_g1.items()},
+                        "g2": {k: pack_res(v) for k, v in tweets_by_kw_g2.items()},
+                    }
+                    s3.done(json.dumps(payload))
                 else:
                     s3.done(json.dumps({"warning": "Twitter disabled or RAPIDAPI_KEY missing"}))
             except Exception as e:
+                try:
+                    db.session.rollback()
+                except Exception:
+                    pass
                 s3.fail(str(e))
 
             # Step 5: Medium tags and trending articles via RapidAPI
@@ -100,6 +121,10 @@ def generate_report(report_id: str):
                 else:
                     s5.done(json.dumps({"warning": "Medium disabled or RAPIDAPI_KEY missing"}))
             except Exception as e:
+                try:
+                    db.session.rollback()
+                except Exception:
+                    pass
                 s5.fail(str(e))
 
             # Steps 6-10: LLM-generated suggestions
@@ -134,7 +159,16 @@ def generate_report(report_id: str):
                 try:
                     heads = thinker.headlines_for_topic(product.name, product.description or "", tp, tweets_text, n=5)
                     for i, h in enumerate(heads):
-                        add_headline(h, 'trending_topic', 'guest' if i < (rep.visibility_cutoff or 5) else 'subscriber', rank=1.0 - i*0.1, meta={"topic": tp})
+                        add_headline(
+                            h,
+                            'trending_topic',
+                            'guest' if i < (rep.visibility_cutoff or 5) else 'subscriber',
+                            rank=1.0 - i*0.1,
+                            meta={
+                                "topic": tp,
+                                "reason": f"From trending topic '{tp}' likely relevant to your audience",
+                            },
+                        )
                 except Exception as e:
                     logger.error(e)
 
@@ -143,7 +177,16 @@ def generate_report(report_id: str):
                 try:
                     tweets = thinker.tweets_for_topic(product.name, product.description or "", tp, n=5)
                     for i, t in enumerate(tweets):
-                        add_tweet(t, 'trending_topic', 'guest' if i < 1 else 'subscriber', rank=1.0 - i*0.1, meta={"topic": tp})
+                        add_tweet(
+                            t,
+                            'trending_topic',
+                            'guest' if i < 1 else 'subscriber',
+                            rank=1.0 - i*0.1,
+                            meta={
+                                "topic": tp,
+                                "reason": f"Tweet idea based on trending topic '{tp}'",
+                            },
+                        )
                 except Exception as e:
                     logger.error(e)
 
@@ -157,9 +200,21 @@ def generate_report(report_id: str):
                 try:
                     out = thinker.headlines_for_keyword(product.name, product.description or "", kw, tweets_text, n=3)
                     for h in out.get('with_tweets', [])[:3]:
-                        add_headline(h, 'kw_g2', 'subscriber', 0.8, {"keyword": kw, "with_tweets": True})
+                        add_headline(
+                            h,
+                            'kw_g2',
+                            'subscriber',
+                            0.8,
+                            {"keyword": kw, "with_tweets": True, "reason": f"From expanded keyword '{kw}' (SerpAPI autocomplete)"}
+                        )
                     for h in out.get('without_tweets', [])[:3]:
-                        add_headline(h, 'kw_g2', 'subscriber', 0.7, {"keyword": kw, "with_tweets": False})
+                        add_headline(
+                            h,
+                            'kw_g2',
+                            'subscriber',
+                            0.7,
+                            {"keyword": kw, "with_tweets": False, "reason": f"From expanded keyword '{kw}' (SerpAPI autocomplete)"}
+                        )
                 except Exception as e:
                     logger.error(e)
 
@@ -170,39 +225,73 @@ def generate_report(report_id: str):
                 try:
                     heads = thinker.headlines_for_medium_tag(product.name, product.description or "", tg, titles, n=3)
                     for h in heads:
-                        add_headline(h, 'medium_tag', 'subscriber', 0.75, {"tag": tg})
+                        add_headline(
+                            h,
+                            'medium_tag',
+                            'subscriber',
+                            0.75,
+                            {"tag": tg, "reason": f"Inspired by trending articles under Medium tag '{tg}'"}
+                        )
                 except Exception as e:
                     logger.error(e)
 
             # 10. Witty replies for every fetched tweet (rank and keep top 5 per source)
-            def top_replies_for(items, source_key):
+            def top_replies_for(items, source_key, source_label=None):
                 candidates = []
-                for tw in items:
-                    text = tw.text
-                    if not text:
-                        continue
+                for tw in items or []:
                     try:
-                        rep_text = thinker.witty_reply(product.name, product.description or "", text)
+                        base_text = getattr(tw, 'text', None) or (tw.get('text') if isinstance(tw, dict) else None)
+                        if not base_text:
+                            continue
+                        rep_text = thinker.witty_reply(product.name, product.description or "", base_text)
                         if rep_text:
                             score = min(1.0, max(0.1, len(rep_text) / 280))
-                            candidates.append((score, rep_text))
+                            candidates.append((score, rep_text, tw))
                     except Exception:
                         continue
                 candidates.sort(key=lambda x: x[0], reverse=True)
-                for i, (_, r) in enumerate(candidates[:5]):
-                    add_reply(r, source_key, 'subscriber', 0.9 - i*0.1)
+                for i, (_, r, tw) in enumerate(candidates[:5]):
+                    # Build meta with original tweet details
+                    try:
+                        if hasattr(tw, 'to_dict'):
+                            st = tw.to_dict()
+                        elif isinstance(tw, TweetSummary):
+                            st = {
+                                "text": tw.text,
+                                "user_name": tw.user_name,
+                                "like_count": tw.like_count,
+                                "retweet_count": tw.retweet_count,
+                                "reply_count": tw.reply_count,
+                            }
+                        elif isinstance(tw, dict):
+                            st = tw
+                        else:
+                            st = {"text": getattr(tw, 'text', None)}
+                    except Exception:
+                        st = {"text": getattr(tw, 'text', None)}
+                    add_reply(
+                        r,
+                        source_key,
+                        'subscriber',
+                        0.9 - i*0.1,
+                        {
+                            "reason": f"Witty reply crafted for a tweet under {source_key.replace('_', ' ')} '{source_label}'" if source_label else f"Witty reply crafted for a tweet under {source_key.replace('_', ' ')}",
+                            "source_label": source_label,
+                            "source_tweet": st,
+                        },
+                    )
 
             # from topics
             for tp in topics[:10]:
                 ctx = tweets_by_topic.get(tp)
-                top_replies_for((ctx.top or []) + (ctx.latest or []), 'trending_topic')
+                top_replies_for(((ctx.top or []) + (ctx.latest or [])) if ctx else [], 'trending_topic', tp)
             # from kw groups
             for kw in (resp.get('group1') or [])[:10]:
                 ctx = tweets_by_kw_g1.get(kw)
-                top_replies_for((ctx.top or []) + (ctx.latest or []), 'kw_g1')
+                top_replies_for(((ctx.top or []) + (ctx.latest or [])) if ctx else [], 'kw_g1', kw)
             for kw in expanded_group2[:10]:
                 ctx = tweets_by_kw_g2.get(kw)
-                top_replies_for((ctx.top or []) + (ctx.latest or []), 'kw_g2')
+                top_replies_for(((ctx.top or []) + (ctx.latest or [])) if ctx else [], 'kw_g2', kw)
 
             rep.mark_partial()  # as soon as some suggestions exist
 

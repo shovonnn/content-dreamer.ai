@@ -9,6 +9,7 @@ type Suggestion = {
   source_type: string;
   text: string;
   rank: number;
+  meta?: any | null;
 };
 
 type ReportRes = {
@@ -65,12 +66,39 @@ export default function ReportPage() {
               {data.suggestions.length === 0 && (
                 <p className="text-gray-600">We’re assembling ideas… check back in a moment.</p>
               )}
-              {data.suggestions.map((s) => (
-                <div key={s.id} className="rounded-lg border p-4">
-                  <div className="text-xs text-gray-500">{s.source_type} • {s.kind}</div>
-                  <div className="mt-2 text-lg">{s.text}</div>
-                </div>
-              ))}
+              {data.suggestions.map((s) => {
+                const isHeadline = s.kind === "article_headline";
+                const isTweet = s.kind === "tweet";
+                const isReply = s.kind === "tweet_reply";
+                const icon = isHeadline ? "📰" : isReply ? "💬" : isTweet ? "🐦" : "✨";
+                return (
+                  <div key={s.id} className="rounded-lg border p-4">
+                    <div className="text-xs text-gray-500 flex items-center gap-2">
+                      <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-gray-100 text-xs">{icon}</span>
+                      <span className="uppercase tracking-wide">{s.source_type} • {s.kind}</span>
+                    </div>
+                    <div className="mt-2 text-lg whitespace-pre-wrap">{s.text}</div>
+                    {s.meta?.reason && (
+                      <div className="mt-2 text-xs text-gray-600">Reason: {s.meta.reason}</div>
+                    )}
+                    {isReply && s.meta?.source_tweet && (
+                      <div className="mt-3 rounded-md bg-gray-50 p-3 text-sm">
+                        <div className="flex items-center gap-2 text-gray-500 text-xs">
+                          <span>Original tweet</span>
+                          <span>•</span>
+                          <span className="inline-flex items-center gap-1"><span>❤️</span>{s.meta.source_tweet.like_count ?? 0}</span>
+                          <span className="inline-flex items-center gap-1"><span>🔁</span>{s.meta.source_tweet.retweet_count ?? 0}</span>
+                          <span className="inline-flex items-center gap-1"><span>💬</span>{s.meta.source_tweet.reply_count ?? 0}</span>
+                        </div>
+                        {s.meta.source_tweet.user_name && (
+                          <div className="mt-1 font-medium">{s.meta.source_tweet.user_name}</div>
+                        )}
+                        <div className="mt-1 text-gray-800 whitespace-pre-wrap">{s.meta.source_tweet.text}</div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
             {data.partial && (
               <div className="mt-8 rounded-lg border p-5 bg-gray-50">

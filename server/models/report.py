@@ -52,6 +52,10 @@ class Report(db.Model):
         db.session.commit()
 
     def mark_failed(self, message: str):
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
         self.status = 'failed'
         self.error_message = message
         db.session.add(self)
