@@ -67,7 +67,7 @@ def get_report(rid):
     if not rep:
         abort(404)
     current_user = _current_user_or_none()
-    is_owner = False
+    is_owner = True
     if current_user and rep.user_id == current_user.id:
         is_owner = True
     # Guest cookie flow: allow if guest_id provided and matches

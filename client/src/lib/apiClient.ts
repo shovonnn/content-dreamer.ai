@@ -165,10 +165,13 @@ export class ApiClient {
       }
     }
 
-    // No refresh or refresh failed → redirect to login
+    // No refresh or refresh failed → redirect to login (avoid loop if already on login)
     if (typeof window !== "undefined") {
-      const next = encodeURIComponent(window.location.pathname + window.location.search);
-      window.location.href = `${LOGIN_PATH}?next=${next}`;
+      const path = window.location.pathname;
+      if (!path.startsWith(LOGIN_PATH)) {
+        const next = encodeURIComponent(path + window.location.search);
+        window.location.href = `${LOGIN_PATH}?next=${next}`;
+      }
     }
     return res; // return the 401 for any callers that await it in SSR contexts
   }

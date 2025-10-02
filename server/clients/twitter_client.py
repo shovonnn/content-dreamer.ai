@@ -1,6 +1,6 @@
 from __future__ import annotations
 import json
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Any
 import requests
 from dataclasses import dataclass
 from config import logger
@@ -14,11 +14,26 @@ class TweetSummary:
     retweet_count: int
     reply_count: int
 
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "text": self.text,
+            "user_name": self.user_name,
+            "like_count": self.like_count,
+            "retweet_count": self.retweet_count,
+            "reply_count": self.reply_count,
+        }
+
 
 @dataclass
 class TwitterSearchResult:
     top: List[TweetSummary]
     latest: List[TweetSummary]
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "top": [t.to_dict() for t in self.top],
+            "latest": [t.to_dict() for t in self.latest],
+        }
 
 
 class TwitterClient:

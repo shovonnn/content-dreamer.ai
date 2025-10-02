@@ -7,7 +7,8 @@ import { api } from "@/lib/apiClient";
 export default function LoginPage() {
   const router = useRouter();
   const search = useSearchParams();
-  const next = search.get("next") || "/";
+  const rawNext = search.get("next") || "/";
+  const next = rawNext.startsWith("/login") ? "/" : rawNext;
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
