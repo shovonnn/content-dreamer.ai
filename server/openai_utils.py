@@ -61,7 +61,7 @@ def _extract_outer_brackets(text, startChar, endChar):
     return matches
 
 # @retry(wait=wait_random_exponential(min=1, max=60), stop=stop_after_attempt(4))
-def get_reply_json(user: User, system_content, user_msg, additional_messages=None, bracket_start='{', bracket_end='}'):
+def get_reply_json(user: User | None, system_content, user_msg, additional_messages=None, bracket_start='{', bracket_end='}'):
   try:
     content = get_reply(user, system_content, user_msg, additional_messages)
   except Exception as e:
@@ -78,20 +78,19 @@ def get_reply_json(user: User, system_content, user_msg, additional_messages=Non
     logger.info(content)
     raise e
 
-def get_reply(user: User, system_content, user_msg, additional_messages=None):
+def get_reply(user: User | None, system_content, user_msg, additional_messages=None):
     model = 'gpt-4o'
     messages = [
-                {"role": "system", "content": system_content},
-                {"role": "user", "content": user_msg},
-        ]
+        {"role": "system", "content": system_content},
+        {"role": "user", "content": user_msg},
+    ]
     if additional_messages:
         messages += additional_messages
     response = openai_client.chat.completions.create(
         model=model,
-        # model="gpt-3.5-turbo",
         messages=messages
     )
-    if response.usage:
+    if response.usage and user and getattr(user, 'id', None):
         prompts = response.usage.prompt_tokens
         completion = response.usage.completion_tokens
         cost = CreditLedger.calculate_cost(prompts/1000, completion/1000, model)

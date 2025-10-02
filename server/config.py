@@ -43,3 +43,11 @@ jwt_token_expires = timedelta(seconds=3600*12)
 cdn_url = os.getenv('CDN_URL', 'https://localhost:5000/static')
 
 FIREBASE_CREDENTIALS = os.getenv('FIREBASE_CREDENTIALS')
+
+# External data sources
+serpapi_key = os.getenv('SERPAPI_KEY')
+rapidapi_key = os.getenv('RAPIDAPI_KEY')  # used for twttr and medium endpoints via RapidAPI
+
+# Feature toggles (optional)
+enable_twitter = os.getenv('ENABLE_TWITTER', '1') in ('1','true','TRUE')
+enable_medium = os.getenv('ENABLE_MEDIUM', '1') in ('1','true','TRUE')
