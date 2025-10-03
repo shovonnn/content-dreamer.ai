@@ -22,7 +22,7 @@ class ThinkingClient:
     def get_keywords_for_prospective_clients(self, product_name: str, description: str) -> List[str]:
         system = (
             "We are looking to find clients from twitter by searching for tweets. Given the product name and description, "
-            "return keywords prospective clients write about on Twitter. Be specific and think critically and creatively and avoid generic terms. "
+            "return keywords prospective clients write about on Twitter. Be specific and think critically and creatively. Return distinct keywords that are relevant for target clients but unique from each other that means not variations of the same concept. "
             'Respond as JSON {"keywords": ["keyword1", "keyword2", ...]}'
         )
         user_msg = f"Product: {product_name}\nDescription: {description}"
@@ -46,6 +46,19 @@ class ThinkingClient:
         except Exception as e:
             logger.exception(e)
             return []
+        
+    def filter_keywords(self, product_name: str, description: str, keywords: List[str], limit: int = 5) -> List[str]:
+        system = 'Select the most relevant keywords to the product from this list. Prioritize distinct keywords and long-tail keywords. Return JSON {"keywords":["..."]}'
+        user_msg = f"Product: {product_name}. Description: {description}. Keywords: {keywords}"
+        try:
+            out = get_reply_json(self.user, system, user_msg)
+            res = out.get('keywords') or []
+            if not isinstance(res, list):
+                return keywords[:min(limit, 5)]
+            return res[:limit]
+        except Exception:
+            # Fallback to first few
+            return keywords[:min(limit, 5)]
 
     def filter_topics(self, product_name: str, description: str, topics: List[str], limit: int = 10) -> List[str]:
         system = 'Select the most relevant topics to the product from this list. Return JSON {"topics":["..."]}'
@@ -60,12 +73,17 @@ class ThinkingClient:
             # Fallback to first few
             return topics[:min(limit, 5)]
 
-    def headlines_for_topic(self, product_name: str, description: str, topic: str, tweets_text: str, n: int = 5) -> List[str]:
-        system = 'Generate 5 compelling article ideas(as Headline) for the topic using the tweet context. Think critically and creatively and avoid generic phrases, emojis, generic ideas. Try to come up with novel ideas. Focus on something that hasn\'t been covered extensively and can be helpful. Return as JSON {"headlines":["..."]}'
-        user_msg = f"Product: {product_name}. Description: {description}. Topic: {topic}. Tweets: {tweets_text[:3000]}"
+    def articles_for_topic(self, product_name: str, description: str, topic: str, more_context: str = None, n: int = 5) -> List[dict]:
+        system = (f'Generate {n} compelling article concepts for the topic and context provided. Think critically and creatively and avoid generic ideas. Not necessarily need to focus on our product. Try to come up with novel ideas. Focus on something that hasn\'t been covered extensively and can be helpful. '
+        'Return as JSON {"article_concepts":[{'
+        '"title":"...", "description":"..."}]}'
+        )
+        user_msg = f"Product: {product_name}. Description: {description}. Topic: {topic}."
+        if more_context:
+            user_msg += f" Helpful Context: {more_context[:10000]}"
         try:
             out = get_reply_json(self.user, system, user_msg)
-            heads = out.get('headlines') or []
+            heads = out.get('article_concepts') or []
             return heads[:n] if isinstance(heads, list) else []
         except Exception as e:
             logger.error(e)
@@ -78,32 +96,6 @@ class ThinkingClient:
             out = get_reply_json(self.user, system, user_msg)
             tweets = out.get('tweets') or []
             return tweets[:n] if isinstance(tweets, list) else []
-        except Exception as e:
-            logger.error(e)
-            return []
-
-    def headlines_for_keyword(self, product_name: str, description: str, keyword: str, tweets_text: str, n: int = 3) -> Dict[str, List[str]]:
-        system = 'Generate 3 SEO-friendly article ideas(as Headline) around the keyword using the tweet context if provided. Think critically and creatively and avoid generic phrases, emojis, generic ideas. Return JSON {"with_tweets":["..."],"without_tweets":["..."]}'
-        user_msg = f"Product: {product_name}. Description: {description}. Keyword: {keyword}. Tweets: {tweets_text[:3000]}"
-        try:
-            out = get_reply_json(self.user, system, user_msg)
-            wt = out.get('with_tweets') or []
-            wot = out.get('without_tweets') or []
-            return {
-                "with_tweets": wt[:n] if isinstance(wt, list) else [],
-                "without_tweets": wot[:n] if isinstance(wot, list) else [],
-            }
-        except Exception as e:
-            logger.error(e)
-            return {"with_tweets": [], "without_tweets": []}
-
-    def headlines_for_medium_tag(self, product_name: str, description: str, tag: str, titles_text: str, n: int = 3) -> List[str]:
-        system = 'Generate 3 article ideas(as Headline) inspired by these trending Medium articles for the given tag. Think critically and creatively and avoid generic phrases, emojis, generic ideas. Try to come up with ideas that are not only catchy but also provide real value to the reader. Return JSON {"headlines":["..."]}'
-        user_msg = f"Product: {product_name}. Description: {description}. Tag: {tag}. Articles: {titles_text[:3000]}"
-        try:
-            out = get_reply_json(self.user, system, user_msg)
-            heads = out.get('headlines') or []
-            return heads[:n] if isinstance(heads, list) else []
         except Exception as e:
             logger.error(e)
             return []

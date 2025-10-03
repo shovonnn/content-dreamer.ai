@@ -69,7 +69,7 @@ class MediumClient:
     
     def get_trending_articles(self, keyword: str, limit: int = 10) -> List[MediumArticle]:
         tag = keyword.lower().replace(" ", "-")
-        ids = self.trending_ids_for_tag(tag, limit=limit*2)
+        ids = self.trending_ids_for_tag(tag, limit=limit)
         articles: List[MediumArticle] = []
         for id in ids:
             article = self.get_article_by_id(id)

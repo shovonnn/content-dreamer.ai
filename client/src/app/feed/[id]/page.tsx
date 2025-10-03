@@ -28,6 +28,19 @@ export default function FeedPage() {
   const [data, setData] = useState<FeedRes | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  const [articlesBySuggestion, setArticlesBySuggestion] = useState<Record<string, {
+    loading: boolean;
+    articleId?: string;
+    article?: {
+      id: string;
+      title: string;
+      content_html?: string | null;
+      content_md?: string | null;
+      status: string;
+      error?: string | null;
+    };
+    error?: string | null;
+  }>>({});
 
   useEffect(() => {
     let timer: any;
@@ -65,6 +78,73 @@ export default function FeedPage() {
     }
   }
 
+  async function startGenerateArticle(suggestionId: string) {
+    // Prevent duplicate clicks
+    setArticlesBySuggestion((prev) => ({
+      ...prev,
+      [suggestionId]: { ...(prev[suggestionId] || {}), loading: true, error: null },
+    }));
+    try {
+      const res = await api.post(`/api/articles`, { suggestion_id: suggestionId });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.error || "Failed to start generation");
+      const articleId: string = json.article_id;
+      setArticlesBySuggestion((prev) => ({
+        ...prev,
+        [suggestionId]: { ...(prev[suggestionId] || {}), loading: true, articleId },
+      }));
+      // Poll until ready/failed
+      await pollArticleUntilReady(suggestionId, articleId);
+    } catch (e: any) {
+      setArticlesBySuggestion((prev) => ({
+        ...prev,
+        [suggestionId]: { ...(prev[suggestionId] || {}), loading: false, error: e.message || "Failed" },
+      }));
+    }
+  }
+
+  async function pollArticleUntilReady(suggestionId: string, articleId: string) {
+    let attempts = 0;
+    const maxAttempts = 600; // ~15 mins at 1.5s interval
+    async function tick() {
+      attempts += 1;
+      try {
+        const res = await api.get(`/api/articles/${articleId}`);
+        const json = await res.json();
+        if (!res.ok) throw new Error(json?.error || "Fetch failed");
+        const status = json.status as string;
+        if (status === "ready" || status === "failed") {
+          setArticlesBySuggestion((prev) => ({
+            ...prev,
+            [suggestionId]: {
+              ...(prev[suggestionId] || {}),
+              loading: false,
+              articleId,
+              article: json,
+              error: status === "failed" ? (json.error || "Generation failed") : null,
+            },
+          }));
+          return;
+        }
+      } catch (e: any) {
+        // keep polling but record transient error
+        setArticlesBySuggestion((prev) => ({
+          ...prev,
+          [suggestionId]: { ...(prev[suggestionId] || {}), error: e.message || "Error fetching article" },
+        }));
+      }
+      if (attempts < maxAttempts) {
+        setTimeout(tick, 1500);
+      } else {
+        setArticlesBySuggestion((prev) => ({
+          ...prev,
+          [suggestionId]: { ...(prev[suggestionId] || {}), loading: false, error: "Timed out" },
+        }));
+      }
+    }
+    setTimeout(tick, 1500);
+  }
+
   return (
     <main className="min-h-screen bg-white text-gray-900">
       <div className="mx-auto max-w-4xl px-6 py-12">
@@ -100,9 +180,53 @@ export default function FeedPage() {
                       <span className="uppercase tracking-wide">{s.source_type} • {s.kind}</span>
                     </div>
                     <div className="mt-2 text-lg whitespace-pre-wrap">{s.text}</div>
+                    {isHeadline && s.meta?.description && (
+                      <div className="mt-2 text-sm text-gray-700 whitespace-pre-wrap">{s.meta.description}</div>
+                    )}
                     {s.meta?.reason && (
                       <div className="mt-2 text-xs text-gray-600">Reason: {s.meta.reason}</div>
                     )}
+                    {isHeadline && (
+                      <div className="mt-3 flex items-center gap-3">
+                        {(() => {
+                          const st = articlesBySuggestion[s.id];
+                          const loading = !!st?.loading;
+                          const hasArticle = !!st?.article && st.article.status === "ready";
+                          const failed = st?.article?.status === "failed";
+                          return (
+                            <>
+                              <button
+                                onClick={() => startGenerateArticle(s.id)}
+                                disabled={loading}
+                                className="inline-flex items-center gap-2 rounded-md bg-white border px-3 py-1.5 text-sm hover:bg-gray-50 disabled:opacity-50"
+                                title="Generate full article"
+                              >
+                                <span>🌬️</span>
+                                <span>{loading ? "Generating…" : "Generate article"}</span>
+                              </button>
+                              {failed && (
+                                <span className="text-xs text-red-600">{st?.error || "Generation failed"}</span>
+                              )}
+                            </>
+                          );
+                        })()}
+                      </div>
+                    )}
+                    {isHeadline && (() => {
+                      const st = articlesBySuggestion[s.id];
+                      const art = st?.article;
+                      if (!art || art.status !== "ready") return null;
+                      return (
+                        <div className="mt-4 rounded-md border bg-gray-50 p-4">
+                          <div className="text-base font-semibold">{art.title}</div>
+                          {art.content_html ? (
+                            <div className="prose max-w-none mt-2" dangerouslySetInnerHTML={{ __html: art.content_html }} />
+                          ) : (
+                            <pre className="mt-2 whitespace-pre-wrap text-sm text-gray-800">{art.content_md}</pre>
+                          )}
+                        </div>
+                      );
+                    })()}
                     {isReply && s.meta?.source_tweet && (
                       <div className="mt-3 rounded-md bg-gray-50 p-3 text-sm">
                         <div className="flex items-center gap-2 text-gray-500 text-xs">

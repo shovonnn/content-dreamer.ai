@@ -42,6 +42,7 @@ def generate_report(report_id: str):
                 if serpapi_key:
                     sa = SerpApiClient(api_key=serpapi_key)
                     expanded_group2 = sa.expand_keywords(expanded_group2, limit=100, per_kw_limit=10)
+                    expanded_group2 = thinker.filter_keywords(product.name, product.description or "", expanded_group2, limit=5)
                     s2.done(json.dumps({"expanded_group2": expanded_group2}))
                 else:
                     s2.done(json.dumps({"warning": "SERPAPI_KEY missing", "expanded_group2": expanded_group2}))
@@ -63,8 +64,9 @@ def generate_report(report_id: str):
                 if enable_twitter and rapidapi_key:
                     tw = TwitterClient(api_key=rapidapi_key)
                     trend_names = tw.get_trending_topics(limit=30)
+                    expanded_trends = sa.expand_keywords(trend_names, limit=100, per_kw_limit=5) if serpapi_key else trend_names
                     # Filter topics with LLM for relevance
-                    topics = thinker.filter_topics(product.name, product.description or "", trend_names, limit=10)
+                    topics = thinker.filter_topics(product.name, product.description or "", expanded_trends, limit=10)
                     # Fetch tweets for each topic
                     for tp in topics:
                         res = tw.search(tp, count=5)
@@ -111,12 +113,11 @@ def generate_report(report_id: str):
             try:
                 if enable_medium and rapidapi_key:
                     md = MediumClient(api_key=rapidapi_key)
-                    all_tags = md.list_root_tags(limit=100)
                     # Select relevant tags via LLM using thinking client
-                    medium_tags = thinker.filter_topics(product.name, product.description or "", all_tags, limit=10)
+                    medium_tags = expanded_group2
                     # Fetch trending articles per tag
                     for tg in medium_tags:
-                        trending_by_tag[tg] = md.get_trending_articles(tg, limit=10)
+                        trending_by_tag[tg] = md.get_trending_articles(tg, limit=2)
                     s5.done(json.dumps({"tags": medium_tags, "counts": {k: len(v) for k, v in trending_by_tag.items()}}))
                 else:
                     s5.done(json.dumps({"warning": "Medium disabled or RAPIDAPI_KEY missing"}))
@@ -157,14 +158,16 @@ def generate_report(report_id: str):
                     *(t.text for t in (tweets_ctx.latest or [])[:5])
                 ])
                 try:
-                    heads = thinker.headlines_for_topic(product.name, product.description or "", tp, tweets_text, n=5)
-                    for i, h in enumerate(heads):
+                    articles = thinker.articles_for_topic(product.name, product.description or "", tp, tweets_text, n=2)
+                    for i, h in enumerate(articles):
                         add_headline(
-                            h,
+                            h.get('title'),
                             'trending_topic',
                             'guest' if i < (rep.visibility_cutoff or 5) else 'subscriber',
                             rank=1.0 - i*0.1,
                             meta={
+                                "title": h.get('title'),
+                                "description": h.get('description'),
                                 "topic": tp,
                                 "reason": f"From trending topic '{tp}' likely relevant to your audience",
                             },
@@ -175,7 +178,7 @@ def generate_report(report_id: str):
             # 7. Potential tweets per trending topic
             for tp in topics[:10]:
                 try:
-                    tweets = thinker.tweets_for_topic(product.name, product.description or "", tp, n=5)
+                    tweets = thinker.tweets_for_topic(product.name, product.description or "", tp, n=2)
                     for i, t in enumerate(tweets):
                         add_tweet(
                             t,
@@ -198,22 +201,30 @@ def generate_report(report_id: str):
                     *(t.text for t in (kw_tweets.latest or [])[:5])
                 ])
                 try:
-                    out = thinker.headlines_for_keyword(product.name, product.description or "", kw, tweets_text, n=3)
-                    for h in out.get('with_tweets', [])[:3]:
+                    articles = thinker.articles_for_topic(product.name, product.description or "", kw, tweets_text, n=2)
+                    for h in articles:
                         add_headline(
-                            h,
+                            h.get('title'),
                             'kw_g2',
                             'subscriber',
                             0.8,
-                            {"keyword": kw, "with_tweets": True, "reason": f"From expanded keyword '{kw}' (SerpAPI autocomplete)"}
+                            {
+                                "title": h.get('title'),
+                                "description": h.get('description'),
+                                "keyword": kw, "with_tweets": True, "reason": f"From keyword '{kw}'"}
                         )
-                    for h in out.get('without_tweets', [])[:3]:
+                    
+                    articles = thinker.articles_for_topic(product.name, product.description or "", kw, None, n=2)
+                    for h in articles:
                         add_headline(
-                            h,
+                            h.get('title'),
                             'kw_g2',
                             'subscriber',
                             0.7,
-                            {"keyword": kw, "with_tweets": False, "reason": f"From expanded keyword '{kw}' (SerpAPI autocomplete)"}
+                            {
+                                "title": h.get('title'),
+                                "description": h.get('description'),
+                                 "keyword": kw, "with_tweets": False, "reason": f"From keyword '{kw}'"}
                         )
                 except Exception as e:
                     logger.error(e)
@@ -221,16 +232,20 @@ def generate_report(report_id: str):
             # 9. Headlines per Medium tag using trending articles
             for tg in medium_tags[:10]:
                 arts = trending_by_tag.get(tg) or []
-                titles = "\n".join([getattr(a, 'title') or '' for a in arts[:10]])
+                titles = "\n".join([getattr(a, 'title')+'\n'+getattr(a, 'subtitle') or '' for a in arts[:10]])
                 try:
-                    heads = thinker.headlines_for_medium_tag(product.name, product.description or "", tg, titles, n=3)
+                    heads = thinker.articles_for_topic(product.name, product.description or "", tg, titles, n=2)
                     for h in heads:
                         add_headline(
-                            h,
+                            h.get('title'),
                             'medium_tag',
                             'subscriber',
                             0.75,
-                            {"tag": tg, "reason": f"Inspired by trending articles under Medium tag '{tg}'"}
+                            {
+                                "title": h.get('title'),
+                                "description": h.get('description'),
+                                "tag": tg, "reason": f"Inspired by trending articles under Medium tag '{tg}'"
+                            }
                         )
                 except Exception as e:
                     logger.error(e)
