@@ -94,6 +94,20 @@ export default function ReportPage() {
                           <div className="mt-1 font-medium">{s.meta.source_tweet.user_name}</div>
                         )}
                         <div className="mt-1 text-gray-800 whitespace-pre-wrap">{s.meta.source_tweet.text}</div>
+                        {(() => {
+                          const st = s.meta?.source_tweet || {};
+                          const id: string | undefined = st.id_str || st.id;
+                          const handle: string | undefined = st.user_screen_name || st.screen_name || st.user_handle || st.username;
+                          const url: string | null = id ? (handle ? `https://x.com/${handle}/status/${id}` : `https://x.com/i/web/status/${id}`) : (st.url || null);
+                          return url ? (
+                            <div className="mt-2">
+                              <a href={url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline">
+                                Open on X
+                                <span aria-hidden>↗</span>
+                              </a>
+                            </div>
+                          ) : null;
+                        })()}
                       </div>
                     )}
                   </div>

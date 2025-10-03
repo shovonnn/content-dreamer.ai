@@ -13,6 +13,9 @@ class TweetSummary:
     like_count: int
     retweet_count: int
     reply_count: int
+    # New: include identifiers to allow UI deep linking
+    id: Optional[str] = None  # tweet id (id_str/rest_id)
+    username: Optional[str] = None  # user handle (screen_name)
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -21,6 +24,8 @@ class TweetSummary:
             "like_count": self.like_count,
             "retweet_count": self.retweet_count,
             "reply_count": self.reply_count,
+            "id": self.id,
+            "username": self.username,
         }
 
 
@@ -148,6 +153,18 @@ class TwitterClient:
                         retweet_count = int(legacy.get("retweet_count") or 0)
                         reply_count = int(legacy.get("reply_count") or 0)
 
+                        # Identifiers for linking
+                        tweet_id = legacy.get("id_str") or tweet_obj.get("rest_id")
+                        user_result = (
+                            tweet_obj.get("core", {})
+                                     .get("user_results", {})
+                                     .get("result", {})
+                        )
+                        username = (
+                            user_result.get("legacy", {}).get("screen_name")
+                            or user_result.get("core", {}).get("screen_name")
+                        )
+
                         tweets.append(
                             TweetSummary(
                                 text=text.strip(),
@@ -155,6 +172,8 @@ class TwitterClient:
                                 like_count=like_count,
                                 retweet_count=retweet_count,
                                 reply_count=reply_count,
+                                id=tweet_id,
+                                username=username,
                             )
                         )
 
