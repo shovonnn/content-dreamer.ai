@@ -79,7 +79,7 @@ def get_reply_json(user: User | None, system_content, user_msg, additional_messa
     raise e
 
 def get_reply(user: User | None, system_content, user_msg, additional_messages=None):
-    model = 'gpt-4o'
+    model = 'gpt-5-mini'
     messages = [
         {"role": "system", "content": system_content},
         {"role": "user", "content": user_msg},

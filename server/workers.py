@@ -265,7 +265,7 @@ def generate_report(report_id: str):
                     except Exception:
                         continue
                 candidates.sort(key=lambda x: x[0], reverse=True)
-                for i, (_, r, tw) in enumerate(candidates[:5]):
+                for i, (_, r, tw) in enumerate(candidates[:10]):
                     # Build meta with original tweet details
                     try:
                         if hasattr(tw, 'to_dict'):
@@ -290,7 +290,7 @@ def generate_report(report_id: str):
                         'subscriber',
                         0.9 - i*0.1,
                         {
-                            "reason": f"Witty reply crafted for a tweet under {source_key.replace('_', ' ')} '{source_label}'" if source_label else f"Witty reply crafted for a tweet under {source_key.replace('_', ' ')}",
+                            "reason": f"Reply crafted for a tweet under '{source_label}'" if source_label else f"Reply crafted for a tweet",
                             "source_label": source_label,
                             "source_tweet": st,
                         },

@@ -23,6 +23,12 @@ class ThinkingClient:
         system = (
             "We are looking to find clients from twitter by searching for tweets. Given the product name and description, "
             "return keywords prospective clients write about on Twitter. Be specific and think critically and creatively. Return distinct keywords that are relevant for target clients but unique from each other that means not variations of the same concept. "
+            'Think critically, twitter is a place where people share their problems, frustrations, aspirations, achievements, and milestones. What would your target clients tweet about that indicates they have the problem our product solves or are looking for a solution. '
+            'For example, if a product is about "helping people find remote jobs", keywords could be "where to find remote jobs", "tired of office work", "struggle of long commute", "hiring", "looking for job", "learned new skill", "graduated". '
+            'if the product is about "learning new languages", keywords could be "travel the world", "moving abroad", "expat struggle", "learn new language", "duolingo issues"(or other competitor app), "looking to learn something new". '
+            'if the product is about "fitness", keywords could be "how can i lose weight", "need to get in shape", "workout routine", "gym motivation", "healthy eating", "fitness goals", "new year resolution". '
+            'if the product is about "personal finance", keywords could be "how to save money", "empty bank account", "struggling pay rent", "investing tips", "debt free journey", "budgeting help", "financial freedom", "side hustle ideas". '
+            'if the product is about "mental health", keywords could be "feeling anxious", "overwhelmed with work", "need a break", "stress management", "self care tips", "mindfulness practice", "therapy experience". '
             'Respond as JSON {"keywords": ["keyword1", "keyword2", ...]}'
         )
         user_msg = f"Product: {product_name}\nDescription: {description}"
