@@ -128,7 +128,10 @@ def generate_report(report_id: str):
                 if enable_medium and rapidapi_key:
                     md = MediumClient(api_key=rapidapi_key)
                     # Select relevant tags via LLM using thinking client
-                    medium_tags = expanded_group2
+                    medium_tags = md.get_all_available_tags(limit=200)
+                    medium_tags = thinker.filter_keywords(product.name, product.description or "", medium_tags, limit=20)
+                    if len(medium_tags) >= 2:
+                        medium_tags = random.sample(medium_tags, 2)
                     # Fetch trending articles per tag
                     for tg in medium_tags:
                         trending_by_tag[tg] = md.get_trending_articles(tg, limit=2)
