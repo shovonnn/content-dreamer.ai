@@ -11,6 +11,8 @@ from clients.twitter_client import TwitterClient, TweetSummary
 from clients.medium_client import MediumClient
 from clients.serp_client import SerpApiClient
 from clients.thinking_client import ThinkingClient
+import random
+from typing import List, Dict, Any, Optional
 
 
 def _app_context():
@@ -34,6 +36,7 @@ def generate_report(report_id: str):
             thinker = ThinkingClient(user=getattr(product, 'user', None))
             resp = thinker.initial_keywords(product.name, product.description or "")
             s1.done(json.dumps(resp))
+            prospect_keywords = random.sample(resp.get('group1') or [], min(2, len(resp.get('group1') or [])))
 
             # Step 2: Expand group2 with SerpAPI autocomplete
             expanded_group2 = list(resp.get('group2') or [])
@@ -43,6 +46,9 @@ def generate_report(report_id: str):
                     sa = SerpApiClient(api_key=serpapi_key)
                     expanded_group2 = sa.expand_keywords(expanded_group2, limit=100, per_kw_limit=10)
                     expanded_group2 = thinker.filter_keywords(product.name, product.description or "", expanded_group2, limit=5)
+                    # take random 2
+                    if len(expanded_group2) >= 2:
+                        expanded_group2 = random.sample(expanded_group2, 2)
                     s2.done(json.dumps({"expanded_group2": expanded_group2}))
                 else:
                     s2.done(json.dumps({"warning": "SERPAPI_KEY missing", "expanded_group2": expanded_group2}))
@@ -64,15 +70,23 @@ def generate_report(report_id: str):
                 if enable_twitter and rapidapi_key:
                     tw = TwitterClient(api_key=rapidapi_key)
                     trend_names = tw.get_trending_topics(limit=30)
-                    expanded_trends = sa.expand_keywords(trend_names, limit=100, per_kw_limit=5) if serpapi_key else trend_names
+                    # expanded_trends = sa.expand_keywords(trend_names, limit=100, per_kw_limit=5) if serpapi_key else trend_names
+                    expanded_trends = trend_names
+                    
                     # Filter topics with LLM for relevance
                     topics = thinker.filter_topics(product.name, product.description or "", expanded_trends, limit=10)
+                    if len(topics) == 0:
+                        # take 2 random trends if expansion fails
+                        topics = random.sample(trend_names, min(2, len(trend_names)))
+                    if len(topics) >= 3:
+                        # take random 3 if too many
+                        topics = random.sample(topics, 2)
                     # Fetch tweets for each topic
                     for tp in topics:
                         res = tw.search(tp, count=5)
                         tweets_by_topic[tp] = res
                     # Fetch tweets for kw group1
-                    for kw in (resp.get('group1') or [])[:15]:
+                    for kw in (prospect_keywords or [])[:15]:
                         res = tw.search(kw, count=5)
                         tweets_by_kw_g1[kw] = res
                     # Fetch tweets for kw group2 (expanded)
@@ -301,7 +315,7 @@ def generate_report(report_id: str):
                 ctx = tweets_by_topic.get(tp)
                 top_replies_for(((ctx.top or []) + (ctx.latest or [])) if ctx else [], 'trending_topic', tp)
             # from kw groups
-            for kw in (resp.get('group1') or [])[:10]:
+            for kw in (prospect_keywords or [])[:10]:
                 ctx = tweets_by_kw_g1.get(kw)
                 top_replies_for(((ctx.top or []) + (ctx.latest or [])) if ctx else [], 'kw_g1', kw)
             for kw in expanded_group2[:10]:
