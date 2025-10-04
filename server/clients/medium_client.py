@@ -2,6 +2,7 @@ from __future__ import annotations
 from typing import List, Dict, Optional
 import requests
 from dataclasses import dataclass
+import json
 
 
 @dataclass
@@ -44,6 +45,40 @@ class MediumClient:
         r.raise_for_status()
         tags = r.json().get("tags", [])
         return tags[:limit]
+    
+    def get_related_tags(self, tag: str, limit: int = 10) -> List[str]:
+        r = self.session.get(f"{self.base_url}/related_tags/{tag}", headers=self.headers, timeout=60)
+        if not r.ok:
+            return []
+        tags = r.json().get("related_tags", [])
+        return tags[:limit]
+    
+    def get_all_available_tags(self, limit: int = 1000) -> List[str]:
+        # first check in the cache
+        from cache import cache_store
+        cached = cache_store.get("medium_all_tags")
+        if cached:
+            try:
+                tags = json.loads(cached)
+                if isinstance(tags, list) and all(isinstance(t, str) for t in tags):
+                    return tags[:limit]
+            except Exception as e:
+                pass
+        
+        root_tags = self.list_root_tags(limit=limit)
+        all_tags = set(root_tags)
+        for rt in root_tags:
+            related = self.get_related_tags(rt, limit=20)
+            for t in related:
+                all_tags.add(t)
+            if len(all_tags) >= limit:
+                break
+        # cache it
+        try:
+            cache_store.set("medium_all_tags", json.dumps(list(all_tags)), ex=86400)
+        except Exception as e:
+            pass
+        return list(all_tags)[:limit]
     
     def get_article_by_id(self, article_id: str) -> Optional[MediumArticle]:
         r = self.session.get(f"{self.base_url}/article/{article_id}", headers=self.headers, timeout=60)
