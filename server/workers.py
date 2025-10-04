@@ -195,7 +195,15 @@ def generate_report(report_id: str):
             # 7. Potential tweets per trending topic
             for tp in topics[:10]:
                 try:
-                    tweets = thinker.tweets_for_topic(product.name, product.description or "", tp, n=2)
+                    twts = tweets_by_topic.get(tp)
+                    if twts:
+                        context = "\n".join([
+                            *(t.text for t in (twts.top or [])[:5]),
+                            *(t.text for t in (twts.latest or [])[:5])
+                        ])
+                    else:
+                        context = None
+                    tweets = thinker.tweets_for_topic(product.name, product.description or "", tp, context, n=2)
                     for i, t in enumerate(tweets):
                         add_tweet(
                             t,
@@ -267,6 +275,26 @@ def generate_report(report_id: str):
                 except Exception as e:
                     logger.error(e)
 
+            # generate tweets from trending articles too
+            for tg in medium_tags[:10]:
+                arts = trending_by_tag.get(tg) or []
+                titles = "\n".join([getattr(a, 'title')+'\n'+getattr(a, 'subtitle') or '' for a in arts[:10]])
+                try:
+                    tweets = thinker.tweets_for_topic(product.name, product.description or "", tg, titles, n=2)
+                    for i, t in enumerate(tweets):
+                        add_tweet(
+                            t,
+                            'medium_tag',
+                            'subscriber' if i >= 1 else 'guest',
+                            rank=0.6 - i*0.1,
+                            meta={
+                                "tag": tg,
+                                "reason": f"Tweet idea based on trending articles under Medium tag '{tg}'",
+                            },
+                        )
+                except Exception as e:
+                    logger.error(e)
+
             # 10. Witty replies for every fetched tweet (rank and keep top 5 per source)
             def top_replies_for(items, source_key, source_label=None):
                 candidates = []
@@ -316,14 +344,21 @@ def generate_report(report_id: str):
             # from topics
             for tp in topics[:10]:
                 ctx = tweets_by_topic.get(tp)
-                top_replies_for(((ctx.top or []) + (ctx.latest or [])) if ctx else [], 'trending_topic', tp)
+                #pick random 2 tweets from top+latest
+                if ctx:
+                    random_tweets = random.sample(((ctx.top or []) + (ctx.latest or [])), 2)
+                    top_replies_for(random_tweets, 'trending_topic', tp)
             # from kw groups
             for kw in (prospect_keywords or [])[:10]:
                 ctx = tweets_by_kw_g1.get(kw)
-                top_replies_for(((ctx.top or []) + (ctx.latest or [])) if ctx else [], 'kw_g1', kw)
+                if ctx:
+                    random_tweets = random.sample(((ctx.top or []) + (ctx.latest or [])), 2)
+                    top_replies_for(random_tweets, 'kw_g1', kw)
             for kw in expanded_group2[:10]:
                 ctx = tweets_by_kw_g2.get(kw)
-                top_replies_for(((ctx.top or []) + (ctx.latest or [])) if ctx else [], 'kw_g2', kw)
+                if ctx:
+                    random_tweets = random.sample(((ctx.top or []) + (ctx.latest or [])), 2)
+                    top_replies_for(random_tweets, 'kw_g2', kw)
 
             rep.mark_partial()  # as soon as some suggestions exist
 

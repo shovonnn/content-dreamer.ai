@@ -95,9 +95,13 @@ class ThinkingClient:
             logger.error(e)
             return []
 
-    def tweets_for_topic(self, product_name: str, description: str, topic: str, n: int = 5) -> List[str]:
-        system = 'Write 5 potential tweets about the topic aligned with the product positioning. Avoid emojis. Don\'t overdo the promotion. Try to sound more casual. Return JSON {"tweets":["..."]}'
+    def tweets_for_topic(self, product_name: str, description: str, topic: str, more_context: str = None, n: int = 5) -> List[str]:
+        system = (f'Write {n} potential tweets about the topic aligned with the product positioning. Avoid emojis. Don\'t overdo the promotion. '
+            'Try to sound more casual. Return JSON {"tweets":["..."]}'
+        )
         user_msg = f"Product: {product_name}. Description: {description}. Topic: {topic}."
+        if more_context:
+            user_msg += f" Helpful Context: {more_context[:10000]}"
         try:
             out = get_reply_json(self.user, system, user_msg)
             tweets = out.get('tweets') or []
