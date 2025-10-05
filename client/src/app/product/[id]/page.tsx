@@ -59,28 +59,28 @@ export default function ProductDetailPage() {
   }
 
   return (
-    <main className="min-h-screen bg-white text-gray-900">
+    <main className="min-h-screen">
       <div className="mx-auto max-w-5xl px-6 py-8">
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-semibold">Product</h1>
-          <Link href="/dashboard" className="text-sm text-gray-600 hover:text-gray-900">Back to dashboard</Link>
+          <Link href="/dashboard" className="text-sm hover:underline">Back to dashboard</Link>
         </div>
-        {loading && <p className="mt-6 text-gray-600">Loading…</p>}
+        {loading && <p className="mt-6">Loading…</p>}
         {error && <p className="mt-6 text-red-600">{error}</p>}
         {product && (
           <div className="mt-6">
-            <div className="rounded-lg border p-5">
+            <div className="rounded-lg border border-slate-200 p-5 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm">
               <h2 className="text-xl font-medium">{product.name}</h2>
-              <p className="mt-2 text-gray-700 whitespace-pre-wrap">{product.description}</p>
+              <p className="mt-2 whitespace-pre-wrap">{product.description}</p>
               {latest && (
-                <div className="mt-4 rounded-md border p-4 bg-gray-50">
+                <div className="mt-4 rounded-md border p-4 bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700">
                   <div className="text-sm">Latest feed status: <span className="font-medium">{latest.status}</span></div>
                   <div className="text-xs text-gray-500">{latest.created_on ? new Date(latest.created_on).toLocaleString() : ""}</div>
                 </div>
               )}
               <div className="mt-4 flex gap-2">
-                <button onClick={generateNew} disabled={creating} className="rounded-md bg-black text-white px-4 py-2 hover:bg-gray-900 disabled:opacity-50">{creating ? "Starting…" : "Generate new feed"}</button>
-                {latest && <Link href={`/feed/${latest.id}`} className="rounded-md border px-4 py-2 hover:bg-gray-50">View latest feed</Link>}
+                <button onClick={generateNew} disabled={creating} className="rounded-md px-4 py-2 bg-brand-600 hover:bg-brand-900 cursor-pointer disabled:opacity-50">{creating ? "Starting…" : "Generate new feed"}</button>
+                {latest && <Link href={`/feed/${latest.id}`} className="rounded-md border px-4 py-2 hover:bg-slate-500">View latest feed</Link>}
               </div>
             </div>
             <div className="mt-8">
@@ -95,7 +95,7 @@ export default function ProductDetailPage() {
                         <div className="text-sm">Status: {f.status}</div>
                         <div className="text-xs text-gray-500">{f.created_on ? new Date(f.created_on).toLocaleString() : ""}</div>
                       </div>
-                      <Link href={`/feed/${f.id}`} className="text-sm rounded-md border px-3 py-1.5 hover:bg-gray-50">Open</Link>
+                      <Link href={`/feed/${f.id}`} className="text-sm rounded-md border px-3 py-1.5 hover:bg-slate-500">Open</Link>
                     </li>
                   ))}
                 </ul>

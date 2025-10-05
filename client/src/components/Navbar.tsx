@@ -1,6 +1,5 @@
 "use client";
 import Link from "next/link";
-import Image from "next/image";
 import { useEffect, useState } from "react";
 import { api } from "@/lib/apiClient";
 import { ProfileMenu } from "@/components/ProfileMenu";
@@ -16,24 +15,28 @@ export function Navbar() {
   }, []);
 
   return (
-    <header className="sticky top-0 z-40 w-full border-b border-gray-200 bg-white">
-      <div className="mx-auto max-w-6xl px-6 h-16 flex items-center justify-between">
-        <Link href="/" className="flex items-center gap-2">
-          <Image src="/next.svg" alt="Content Dreamer" width={28} height={28} className="dark:invert" />
-          <span className="font-semibold text-lg tracking-tight text-gray-900">Content Dreamer</span>
+    <header className="sticky top-0 z-50 bg-white/70 backdrop-blur dark:bg-slate-950/70 border-b border-slate-200/60 dark:border-slate-800/60">
+      <div className="container h-14 flex items-center justify-between">
+        <Link href="/" className="flex items-center gap-2 font-semibold">
+          <span className="inline-flex h-8 w-8 items-center justify-center rounded-xl bg-brand-600 text-white">CD</span>
+          <span>Content Dreamer</span>
         </Link>
-        <nav className="flex items-center gap-3">
-          <Link href="/dashboard" className="text-sm text-gray-900 hover:text-black">Dashboard</Link>
-          <Link href="/pricing" className="text-sm text-gray-900 hover:text-black">Pricing</Link>
+        <nav className="hidden md:flex items-center gap-6 text-sm">
+          <a href="#features" className="hover:text-brand-600">Features</a>
+          <a href="#pricing" className="hover:text-brand-600">Pricing</a>
+          <a href="#faq" className="hover:text-brand-600">FAQ</a>
+          <Link href="/dashboard" className="hover:text-brand-600">Dashboard</Link>
+        </nav>
+        <div className="flex items-center gap-3">
           {authed ? (
             <ProfileMenu />
           ) : (
             <>
-              <Link href="/login" className="text-sm px-3 py-1.5 rounded-md hover:bg-gray-50 text-gray-900">Login</Link>
-              <Link href="/register" className="text-sm px-3 py-1.5 rounded-md bg-black text-white hover:bg-gray-900">Get Started</Link>
+              <Link href="/login" className="hidden md:inline kbd border-slate-300 dark:border-slate-700">Log in</Link>
+              <Link href="/register" className="inline-flex items-center rounded-xl bg-brand-600 px-4 py-2 text-white hover:bg-brand-700">Get Started</Link>
             </>
           )}
-        </nav>
+        </div>
       </div>
     </header>
   );

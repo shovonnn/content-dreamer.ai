@@ -38,22 +38,22 @@ export function ProfileMenu() {
 
   return (
     <div className="relative" ref={ref}>
-      <button onClick={() => setOpen(v => !v)} className="flex items-center gap-2 text-gray-900">
+      <button onClick={() => setOpen(v => !v)} className="flex items-center gap-2 rounded-xl border border-slate-300 px-3 py-1 font-medium hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-900 cursor-pointer">
         <img src={avatar} alt="avatar" className="w-8 h-8 rounded-full border" />
         <span className="text-sm">{me?.name || me?.email || "Account"}</span>
       </button>
       {open && (
-        <div className="absolute right-0 mt-2 w-56 rounded-xl border bg-white shadow-lg p-2 z-50">
+        <div className="absolute right-0 mt-2 w-56 rounded-xl border bg-slate-50 dark:bg-slate-900 dark:border-slate-700 shadow-lg p-2 z-50">
           <div className="px-3 py-2">
-            <div className="text-sm font-medium text-gray-900">{me?.name || "Your account"}</div>
-            <div className="text-xs text-gray-600 truncate">{me?.email}</div>
+            <div className="text-sm font-medium">{me?.name || "Your account"}</div>
+            <div className="text-xs truncate">{me?.email}</div>
           </div>
-          <div className="my-1 h-px bg-gray-100" />
-          <Link href="/dashboard" className="block px-3 py-2 text-sm rounded-md hover:bg-gray-50 text-gray-900">Dashboard</Link>
-          <Link href="/billing" className="block px-3 py-2 text-sm rounded-md hover:bg-gray-50 text-gray-900">Billing</Link>
-          <Link href="/settings" className="block px-3 py-2 text-sm rounded-md hover:bg-gray-50 text-gray-900">Settings</Link>
-          <div className="my-1 h-px bg-gray-100" />
-          <button onClick={() => api.logout()} className="w-full text-left px-3 py-2 text-sm rounded-md hover:bg-gray-50 text-gray-900">Log out</button>
+          <div className="my-1 h-px" />
+          <Link href="/dashboard" className="block px-3 py-2 text-sm hover:bg-slate-500 rounded-md">Dashboard</Link>
+          <Link href="/billing" className="block px-3 py-2 text-sm hover:bg-slate-500 rounded-md">Billing</Link>
+          <Link href="/settings" className="block px-3 py-2 text-sm hover:bg-slate-500 rounded-md">Settings</Link>
+          <div className="my-1 h-px bg-gray-100 dark:bg-slate-600" />
+          <button onClick={() => api.logout()} className="w-full text-left px-3 py-2 text-sm rounded-md cursor-pointer">Log out</button>
         </div>
       )}
     </div>

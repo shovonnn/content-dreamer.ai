@@ -2,6 +2,13 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/apiClient";
+import Hero from "@/components/Hero";
+import Logos from "@/components/Logos";
+import Features from "@/components/Features";
+import Showcase from "@/components/Showcase";
+import Pricing from "@/components/Pricing";
+import FAQ from "@/components/FAQ";
+import Footer from "@/components/Footer";
 
 function ensureGuestId(): string {
   if (typeof window === "undefined") return "";
@@ -44,36 +51,36 @@ export default function Home() {
   }
 
   return (
-    <main className="min-h-screen bg-white text-gray-900">
-      <section className="relative overflow-hidden">
-        <div className="mx-auto max-w-6xl px-6 pt-16 pb-16">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-12 items-center">
-            <div>
-              <h1 className="text-5xl font-extrabold tracking-tight leading-tight">Dream up premium content ideas</h1>
-              <p className="mt-5 text-xl text-gray-600">Turn your product into scroll‑stopping articles and tweets—powered by trends, keywords, and AI.</p>
-              <ul className="mt-6 space-y-2 text-gray-700">
-                <li>• SEO keywords from Google autocomplete</li>
-                <li>• Trends and tweets from Twitter</li>
-                <li>• Medium tags and top articles</li>
-              </ul>
-            </div>
-            <div>
-              <form onSubmit={onSubmit} className="rounded-2xl border border-gray-200 p-6 shadow-sm">
-                <h2 className="text-2xl font-semibold">Try it free</h2>
-                <p className="text-sm text-gray-500 mt-1">No login required for your first feed.</p>
-                <label className="block mt-5 text-sm font-medium">Product name</label>
-                <input className="mt-1 w-full rounded-md border px-3 py-2" placeholder="e.g. Acme Outreach" value={name} onChange={e=>setName(e.target.value)} />
-                <label className="block mt-4 text-sm font-medium">Product description</label>
-                <textarea className="mt-1 w-full rounded-md border px-3 py-2 h-28" placeholder="What does it do? Who is it for?" value={desc} onChange={e=>setDesc(e.target.value)} />
-                {error && <p className="text-sm text-red-600 mt-3">{error}</p>}
-                <button disabled={loading} className="mt-5 inline-flex items-center justify-center rounded-md bg-black px-4 py-2 text-white hover:bg-gray-900 disabled:opacity-50">
-                  {loading ? "Generating…" : "Generate content feed"}
-                </button>
-              </form>
-            </div>
+    <main className="">
+      <Hero />
+      <section id="cta" className="section">
+        <div className="container grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
+          <div className="space-y-3">
+            <h2 className="text-2xl font-semibold">Try it free</h2>
+            <p className="">No login required for your first feed.</p>
+            <ul className="mt-2 space-y-1 text-sm">
+              <li>• SEO keywords from Google autocomplete</li>
+              <li>• Trends and tweets from X/Twitter</li>
+              <li>• Medium tags and top articles</li>
+            </ul>
           </div>
+          <form onSubmit={onSubmit} className="rounded-2xl rounded-xl border border-slate-300 font-medium bg-slate-50 dark:border-slate-800 dark:bg-slate-900 p-6 shadow-sm">
+            <label className="block text-sm font-medium">Product name</label>
+            <input className="mt-1 w-full rounded-md border px-3 py-2 dark:border-slate-800" placeholder="e.g. Acme Outreach" value={name} onChange={e=>setName(e.target.value)} />
+            <label className="block mt-4 text-sm font-medium">Product description</label>
+            <textarea className="mt-1 w-full rounded-md border px-3 py-2 h-28 dark:border-slate-800" placeholder="What does it do? Who is it for?" value={desc} onChange={e=>setDesc(e.target.value)} />
+            {error && <p className="text-sm text-red-600 mt-3">{error}</p>}
+            <button disabled={loading} className="mt-5 inline-flex items-center justify-center rounded-xl bg-brand-600 px-5 py-3 font-medium text-white hover:bg-brand-700 disabled:opacity-50">
+              {loading ? "Generating…" : "Get content suggestion"}
+            </button>
+          </form>
         </div>
       </section>
+      <Features />
+      <Showcase />
+      <Pricing />
+      <FAQ />
+      <Footer />
     </main>
   );
 }
