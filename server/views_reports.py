@@ -102,7 +102,7 @@ def create_billing_portal():
         # Create if absent
         cust = stripe.Customer.create(email=user.email or None, metadata={'user_id': user.id})
         customer_id = cust.id
-    portal = stripe.billing_portal.Session.create(customer=customer_id, return_url=(request.headers.get('Origin') or '*') + '/billing')
+    portal = stripe.billing_portal.Session.create(customer=customer_id, return_url=(request.headers.get('Origin') or '*') + '/pricing')
     return jsonify({'url': portal.url}), 200
 
 
