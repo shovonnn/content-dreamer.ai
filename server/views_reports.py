@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify, abort
-from flask_jwt_extended import jwt_required, get_jwt_identity
+from flask_jwt_extended import jwt_required, get_jwt_identity, verify_jwt_in_request
 from models.db_utils import db
 from models.user import User
 from models.product import Product
@@ -13,12 +13,14 @@ from datetime import date
 from uuid import uuid4
 from queue_util import q
 import json
+from config import logger
 
 bp_reports = Blueprint('bp_reports', __name__)
 
 
 def _current_user_or_none():
     try:
+        verify_jwt_in_request(optional=True)
         uid = get_jwt_identity()
         if not uid:
             return None
