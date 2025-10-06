@@ -146,21 +146,21 @@ export default function FeedPage() {
   }
 
   return (
-    <main className="min-h-screen bg-white text-gray-900">
+    <main className="">
       <div className="mx-auto max-w-4xl px-6 py-12">
         <h1 className="text-3xl font-bold">Content Feed</h1>
         {error && <p className="text-red-600 mt-4">{error}</p>}
         {!data && <p className="mt-6 text-gray-600">Loading…</p>}
         {data && (
           <div className="mt-6">
-            <p className="text-sm text-gray-500">Status: {data.status}{data.partial ? " (partial)" : ""}</p>
+            <p className="text-sm">Status: {data.status}{data.partial ? " (partial)" : ""}</p>
             {data.product && (
-              <div className="mt-4 rounded-xl border p-5 bg-gray-50">
+              <div className="mt-4 rounded-xl border p-5 bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700">
                 <h2 className="text-xl font-semibold">{data.product.name}</h2>
-                <p className="text-gray-700 mt-2 whitespace-pre-wrap">{data.product.description}</p>
+                <p className="mt-2 whitespace-pre-wrap">{data.product.description}</p>
                 <div className="mt-4 flex gap-2">
-                  <button onClick={generateNewForProduct} disabled={creating} className="rounded-md bg-black text-white px-4 py-2 hover:bg-gray-900 disabled:opacity-50">{creating ? "Starting…" : "Generate new feed"}</button>
-                  <a href={`/product/${data.product.id}`} className="rounded-md border px-4 py-2 hover:bg-gray-50">Browse old feeds</a>
+                  <button onClick={generateNewForProduct} disabled={creating} className="rounded-md bg-black text-white cursor-pointer px-4 py-2 hover:bg-gray-900 disabled:opacity-50">{creating ? "Starting…" : "Generate new feed"}</button>
+                  <a href={`/product/${data.product.id}`} className="rounded-md border px-4 py-2 border-slate-500 hover:bg-slate-500">Browse old feeds</a>
                 </div>
               </div>
             )}
@@ -174,14 +174,14 @@ export default function FeedPage() {
                 const isReply = s.kind === "tweet_reply";
                 const icon = isHeadline ? "📰" : isReply ? "💬" : isTweet ? "🐦" : "✨";
                 return (
-                  <div key={s.id} className="rounded-lg border p-4">
+                  <div key={s.id} className="rounded-lg border border-slate-500 bg-slate-900 p-4">
                     <div className="text-xs text-gray-500 flex items-center gap-2">
                       <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-gray-100 text-xs">{icon}</span>
                       <span className="uppercase tracking-wide">{s.source_type} • {s.kind}</span>
                     </div>
                     <div className="mt-2 text-lg whitespace-pre-wrap">{s.text}</div>
                     {isHeadline && s.meta?.description && (
-                      <div className="mt-2 text-sm text-gray-700 whitespace-pre-wrap">{s.meta.description}</div>
+                      <div className="mt-2 text-sm whitespace-pre-wrap">{s.meta.description}</div>
                     )}
                     {s.meta?.reason && (
                       <div className="mt-2 text-xs text-gray-600">Reason: {s.meta.reason}</div>
@@ -198,7 +198,7 @@ export default function FeedPage() {
                               <button
                                 onClick={() => startGenerateArticle(s.id)}
                                 disabled={loading}
-                                className="inline-flex items-center gap-2 rounded-md bg-white border px-3 py-1.5 text-sm hover:bg-gray-50 disabled:opacity-50"
+                                className="inline-flex items-center gap-2 rounded-md bg-gray-500 border px-3 py-1.5 text-sm hover:bg-gray-400 cursor-pointer disabled:opacity-50"
                                 title="Generate full article"
                               >
                                 <span>🌬️</span>
@@ -237,7 +237,7 @@ export default function FeedPage() {
                           <span className="inline-flex items-center gap-1"><span>💬</span>{s.meta.source_tweet.reply_count ?? 0}</span>
                         </div>
                         {s.meta.source_tweet.user_name && (
-                          <div className="mt-1 font-medium">{s.meta.source_tweet.user_name}</div>
+                          <div className="mt-1 text-gray-800 font-medium">{s.meta.source_tweet.user_name}</div>
                         )}
                         <div className="mt-1 text-gray-800 whitespace-pre-wrap">{s.meta.source_tweet.text}</div>
                         {(() => {

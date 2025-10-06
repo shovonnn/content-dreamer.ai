@@ -48,7 +48,7 @@ export default function ReportPage() {
   }, [params.id, guest_id]);
 
   return (
-    <main className="min-h-screen bg-white text-gray-900">
+    <main className="">
       <div className="mx-auto max-w-4xl px-6 py-12">
         <h1 className="text-3xl font-bold">Content Feed</h1>
         {error && <p className="text-red-600 mt-4">{error}</p>}

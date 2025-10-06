@@ -39,7 +39,7 @@ export function ProfileMenu() {
   return (
     <div className="relative" ref={ref}>
       <button onClick={() => setOpen(v => !v)} className="flex items-center gap-2 rounded-xl border border-slate-300 px-3 py-1 font-medium hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-900 cursor-pointer">
-        <img src={avatar} alt="avatar" className="w-8 h-8 rounded-full border" />
+        <img src={avatar} alt="avatar" className="w-6 h-6 rounded-full border" />
         <span className="text-sm">{me?.name || me?.email || "Account"}</span>
       </button>
       {open && (
