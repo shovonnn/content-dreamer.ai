@@ -48,6 +48,11 @@ export default function ProductDetailPage() {
     try {
       const res = await api.post(`/api/products/${pid}/feeds/initiate`, {});
       const json = await res.json();
+      if (res.status === 402) {
+        const msg = json?.error || "Limit reached";
+        window.location.href = `/pricing?reason=${encodeURIComponent(msg)}`;
+        return;
+      }
       if (!res.ok) throw new Error(json?.error || "Failed to initiate");
       // navigate to feed page
       window.location.href = `/feed/${json.report_id}`;

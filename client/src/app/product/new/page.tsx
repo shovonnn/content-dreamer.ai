@@ -24,6 +24,11 @@ export default function NewProductPage() {
       // Initiate feed for this product
       const r2 = await api.post(`/api/products/${p.id}/feeds/initiate`, {});
       const f = await r2.json();
+      if (r2.status === 402) {
+        const msg = f?.error || "Limit reached";
+        window.location.href = `/pricing?reason=${encodeURIComponent(msg)}`;
+        return;
+      }
       if (!r2.ok) throw new Error(f?.error || "Failed to start feed");
       // Redirect to new feed page
       window.location.href = `/feed/${f.report_id}`;
