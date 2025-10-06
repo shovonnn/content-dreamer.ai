@@ -15,7 +15,7 @@ export default function Features() {
     <section id="features" className="section">
       <div className="container">
         <div className="mx-auto max-w-2xl text-center">
-          <h2 className="text-3xl font-bold sm:text-4xl">Everything you need to ship better content</h2>
+          <h2 className="text-3xl font-bold sm:text-4xl">Everything you need for consistent content strategy</h2>
           <p className="mt-3">Find ideas, plan posts, and publish faster with confidence.</p>
         </div>
         <div className="mt-10 grid gap-6 md:grid-cols-3">
