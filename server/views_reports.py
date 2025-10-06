@@ -9,11 +9,16 @@ from models.suggestion import Suggestion
 from models.article import Article
 from models.subscription import SubscriptionPlan, UserSubscription, UsageQuota
 from plans import get_plans
+from stripe_util import stripe
+from datetime import datetime, timedelta
 from datetime import date
 from uuid import uuid4
 from queue_util import q
+import os
+from stripe_util import webhook_secret
 import json
 from config import logger
+import config as config
 
 bp_reports = Blueprint('bp_reports', __name__)
 
@@ -40,6 +45,91 @@ def list_plans():
     return jsonify(plans), 200
 
 
+@bp_reports.route('/api/billing/checkout', methods=['POST'])
+@jwt_required()
+def create_checkout_session():
+    data = request.get_json(force=True, silent=True) or {}
+    plan_id = (data.get('plan_id') or '').strip()
+    if plan_id not in ('pro', 'advanced'):
+        abort(400, 'Invalid plan_id')
+    plans = get_plans()
+    plan = next((p for p in plans if p['id'] == plan_id), None)
+    if not plan or not plan.get('stripe_price_id'):
+        abort(400, 'Plan not available')
+    uid = get_jwt_identity()
+    user = User.query.get(uid)
+    if not user:
+        abort(404)
+    # Ensure a customer
+    customer = stripe.Customer.create(email=user.email or None, metadata={'user_id': user.id})
+    # Derive return URLs
+    origin = request.headers.get('Origin') or (getattr(config, 'app_url', None) or 'http://localhost:3000')
+    # Create checkout session
+    session = stripe.checkout.Session.create(
+        mode='subscription',
+        customer=customer.id,
+        line_items=[{'price': plan['stripe_price_id'], 'quantity': 1}],
+        success_url=origin + '/dashboard?upgrade=success',
+        cancel_url=origin + '/pricing?canceled=1',
+    )
+    # Persist or update pending subscription record
+    sub = UserSubscription.query.filter_by(user_id=user.id).first()
+    if not sub:
+        sub = UserSubscription.create(user_id=user.id, plan_id=plan_id, status='pending')
+    else:
+        sub.plan_id = plan_id
+        sub.status = 'pending'
+        db.session.add(sub)
+        db.session.commit()
+    # Record customer id for portal reuse
+    sub.stripe_customer_id = customer.id
+    db.session.add(sub)
+    db.session.commit()
+    return jsonify({'url': session.url}), 200
+
+
+@bp_reports.route('/api/billing/portal', methods=['POST'])
+@jwt_required()
+def create_billing_portal():
+    uid = get_jwt_identity()
+    user = User.query.get(uid)
+    if not user:
+        abort(404)
+    # Try to find existing stripe customer via last subscription
+    last = UserSubscription.query.filter_by(user_id=user.id).order_by(UserSubscription.current_period_end.desc()).first()
+    customer_id = last.stripe_customer_id if last and last.stripe_customer_id else None
+    if not customer_id:
+        # Create if absent
+        cust = stripe.Customer.create(email=user.email or None, metadata={'user_id': user.id})
+        customer_id = cust.id
+    portal = stripe.billing_portal.Session.create(customer=customer_id, return_url=(request.headers.get('Origin') or '*') + '/billing')
+    return jsonify({'url': portal.url}), 200
+
+
+@bp_reports.route('/api/admin/sync_plans', methods=['POST'])
+def admin_sync_plans():
+    # Light admin guard: require header token if set
+    admin_token = request.headers.get('X-Admin-Token')
+    expected = os.getenv('ADMIN_SYNC_TOKEN')
+    if expected and admin_token != expected:
+        abort(403)
+    plans = get_plans()
+    for p in plans:
+        rec = SubscriptionPlan.query.get(p['id'])
+        limits_json = json.dumps(p['limits'])
+        if not rec:
+            rec = SubscriptionPlan(id=p['id'], price_usd=p['price_usd'], stripe_price_id=p.get('stripe_price_id'), limits_json=limits_json, active=True)
+            db.session.add(rec)
+        else:
+            rec.price_usd = p['price_usd']
+            rec.stripe_price_id = p.get('stripe_price_id')
+            rec.limits_json = limits_json
+            rec.active = True
+            db.session.add(rec)
+    db.session.commit()
+    return jsonify({'synced': len(plans)}), 200
+
+
 @bp_reports.route('/api/reports/initiate', methods=['POST'])
 @bp_reports.route('/api/feeds/initiate', methods=['POST'])  # alias path using feed terminology
 def initiate_report():
@@ -57,6 +147,12 @@ def initiate_report():
         existing = Report.query.filter_by(guest_id=guest_id).first()
         if existing:
             return jsonify({'report_id': existing.id, 'prompt_login': True}), 200
+
+    # Enforce daily quotas for authenticated users
+    if user_id:
+        enforce_ok, reason = _enforce_quota(user_id, kind='content')
+        if not enforce_ok:
+            return jsonify({'error': reason, 'upgrade_required': True}), 402
 
     prod = Product.create(name=name, description=desc, user_id=user_id, guest_id=guest_id)
     # Visibility cutoff from plan config (basic default for guests)
@@ -142,7 +238,9 @@ def regenerate_report(rid):
     rep = Report.query.get(rid)
     if not rep or (rep.user_id != current_user_id):
         abort(404)
-    # TODO: enforce quota here
+    ok, reason = _enforce_quota(current_user_id, kind='content')
+    if not ok:
+        return jsonify({'error': reason, 'upgrade_required': True}), 402
     new_rep = Report.create(product_id=rep.product_id, user_id=current_user_id, visibility_cutoff=rep.visibility_cutoff)
     q.enqueue('workers.generate_report', new_rep.id, job_timeout='30m')
     return jsonify({'report_id': new_rep.id}), 200
@@ -162,7 +260,9 @@ def create_article():
     current_user_id = get_jwt_identity()
     if rep.user_id != current_user_id:
         abort(403)
-    # TODO: enforce article quota
+    ok, reason = _enforce_quota(current_user_id, kind='article')
+    if not ok:
+        return jsonify({'error': reason, 'upgrade_required': True}), 402
     art = Article.create(report_id=rep.id, title=sug.text[:140], suggestion_id=sug.id)
     # enqueue article generation
     q.enqueue('workers.generate_article', art.id, job_timeout='15m')
@@ -217,11 +317,8 @@ def merge_guest_reports():
 @jwt_required()
 def my_limits():
     uid = get_jwt_identity()
-    # Simplified: return basic defaults for now
-    plans = get_plans()
-    # TODO: fetch actual user subscription
-    plan = next((p for p in plans if p['id'] == 'basic'), plans[0])
-    return jsonify({'plan_id': plan['id'], 'limits': plan['limits']}), 200
+    plan_id, limits = _get_user_plan_and_limits(uid)
+    return jsonify({'plan_id': plan_id, 'limits': limits}), 200
 
 
 # -------- Products and Feeds (reports) management --------
@@ -297,6 +394,10 @@ def initiate_feed_for_product(pid):
     """Create a new feed (report) for an existing product."""
     p, user_id, guest_id = _ensure_product_access(pid)
     # Visibility cutoff: default 5 for guests, else from plan (simplified)
+    if user_id:
+        ok, reason = _enforce_quota(user_id, kind='content')
+        if not ok:
+            return jsonify({'error': reason, 'upgrade_required': True}), 402
     visibility_cutoff = 5
     rep = Report.create(product_id=p.id, user_id=user_id, guest_id=guest_id, visibility_cutoff=visibility_cutoff)
     q.enqueue('workers.generate_report', rep.id, job_timeout='30m')
@@ -315,3 +416,100 @@ def list_product_feeds(pid):
             'completed_at': r.completed_at.isoformat() if r.completed_at else None,
         } for r in reports
     ]}), 200
+
+
+# ---------- Helpers: subscription and quotas ----------
+
+def _get_user_plan_and_limits(user_id: str):
+    plans = get_plans()
+    # default free
+    default_plan = next((p for p in plans if p['id'] == 'free'), plans[0])
+    sub = UserSubscription.query.filter_by(user_id=user_id).order_by(UserSubscription.current_period_end.desc()).first()
+    plan_id = default_plan['id']
+    limits = default_plan['limits']
+    sub.update_status()
+    if sub and sub.status in ('active', 'trialing', 'past_due') and sub.plan_id:
+        p = next((pp for pp in plans if pp['id'] == sub.plan_id), None)
+        if p:
+            plan_id = p['id']
+            limits = p['limits']
+    return plan_id, limits
+
+
+def _enforce_quota(user_id: str, kind: str):
+    today = date.today()
+    quota = UsageQuota.get_or_create(user_id, today)
+    plan_id, limits = _get_user_plan_and_limits(user_id)
+    if kind == 'content':
+        allowed = limits.get('content_generations_per_day', 1)
+        used = quota.content_gen_count or 0
+        if allowed >= 0 and used >= allowed:
+            return False, 'Daily content generation limit reached. Upgrade your plan.'
+        quota.content_gen_count = used + 1
+    elif kind == 'article':
+        allowed = limits.get('articles_per_day', 1)
+        used = quota.article_gen_count or 0
+        if allowed >= 0 and used >= allowed:
+            return False, 'Daily article generation limit reached. Upgrade your plan.'
+        quota.article_gen_count = used + 1
+    else:
+        return True, ''
+    db.session.add(quota)
+    db.session.commit()
+    return True, ''
+
+
+@bp_reports.route('/api/stripe/webhook', methods=['POST'])
+def stripe_webhook():
+    payload = request.get_data(as_text=True)
+    sig_header = request.headers.get('Stripe-Signature')
+    try:
+        if webhook_secret:
+            event = stripe.Webhook.construct_event(payload, sig_header, webhook_secret)  # type: ignore
+        else:
+            event = json.loads(payload)
+    except Exception as e:
+        logger.exception(e)
+        return jsonify({'error': 'invalid payload'}), 400
+
+    et = event.get('type') if isinstance(event, dict) else getattr(event, 'type', None)
+    data = event.get('data', {}).get('object', {}) if isinstance(event, dict) else getattr(event, 'data', {}).get('object', {})
+
+    def ensure_user_sub(customer_id: str, subscription_id: str | None, status: str | None, plan_id_hint: str | None = None):
+        sub = UserSubscription.query.filter_by(stripe_customer_id=customer_id).first()
+        if not sub:
+            # fallback by subscription id
+            if subscription_id:
+                sub = UserSubscription.query.filter_by(stripe_subscription_id=subscription_id).first()
+        if not sub:
+            return
+        if subscription_id:
+            sub.stripe_subscription_id = subscription_id
+        
+        sub.update_status()
+        # map price -> plan id if provided
+        if plan_id_hint:
+            sub.plan_id = plan_id_hint
+        db.session.add(sub)
+        db.session.commit()
+
+    if et in ('checkout.session.completed', 'customer.subscription.created', 'customer.subscription.updated'):
+        # Extract fields
+        customer_id = data.get('customer')
+        sub_id = data.get('subscription') or data.get('id')
+        status = data.get('status')
+        plan_id_hint = None
+        try:
+            price_id = (data.get('plan') or {}).get('id') or (data.get('items', {}).get('data', [{}])[0].get('price', {}) or {}).get('id')
+            if price_id:
+                plans = get_plans()
+                for p in plans:
+                    if p.get('stripe_price_id') == price_id:
+                        plan_id_hint = p['id']
+                        break
+        except Exception:
+            pass
+        if customer_id:
+            ensure_user_sub(customer_id, sub_id, status, plan_id_hint)
+
+    return jsonify({'received': True}), 200

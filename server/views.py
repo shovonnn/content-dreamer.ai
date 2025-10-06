@@ -126,6 +126,22 @@ def _avatar_public_url(stored: str | None):
   return f"{config.cdn_url}/{stored}" if config.cdn_url else stored
 
 app_views = Blueprint("app_views", __name__)
+@app_views.route('/api/me/current_plan', methods=['GET'])
+@requires_auth
+def current_plan(current_user: User, **kwargs):
+  from plans import get_plans
+  from models.subscription import UserSubscription
+  plans = get_plans()
+  default_plan = next((p for p in plans if p['id'] == 'free'), plans[0])
+  sub = UserSubscription.query.filter_by(user_id=current_user.id).order_by(UserSubscription.current_period_end.desc()).first()
+  plan_id = default_plan['id']
+  limits = default_plan['limits']
+  if sub and sub.status in ('active','trialing','past_due') and sub.plan_id:
+    p = next((pp for pp in plans if pp['id'] == sub.plan_id), None)
+    if p:
+      plan_id = p['id']
+      limits = p['limits']
+  return jsonify({'plan_id': plan_id, 'limits': limits}), 200
 
 
 @app_views.route('/api/external', methods=['GET'])

@@ -3,13 +3,25 @@ import { useEffect, useState } from "react";
 import { useSearchParams, useParams } from "next/navigation";
 import { api } from "@/lib/apiClient";
 
+type SuggestionMeta = {
+  description?: string;
+  reason?: string;
+  source_tweet?: {
+    id_str?: string; id?: string; url?: string;
+    user_screen_name?: string; screen_name?: string; user_handle?: string; username?: string;
+    user_name?: string;
+    text?: string;
+    like_count?: number; retweet_count?: number; reply_count?: number;
+  };
+};
+
 type Suggestion = {
   id: string;
   kind: string;
   source_type: string;
   text: string;
   rank: number;
-  meta?: any | null;
+  meta?: SuggestionMeta | null;
 };
 
 type FeedRes = {
@@ -43,7 +55,7 @@ export default function FeedPage() {
   }>>({});
 
   useEffect(() => {
-    let timer: any;
+  let timer: ReturnType<typeof setTimeout> | undefined;
     async function fetchFeed() {
       try {
         // Use reports endpoint, but alias exists at /api/feeds/<id>
@@ -54,8 +66,9 @@ export default function FeedPage() {
         if (json.status === "queued" || json.status === "running") {
           timer = setTimeout(fetchFeed, 2000);
         }
-      } catch (e: any) {
-        setError(e.message || "Error");
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : "Error";
+        setError(msg);
       }
     }
     fetchFeed();
@@ -69,10 +82,16 @@ export default function FeedPage() {
     try {
       const res = await api.post(`/api/products/${data.product.id}/feeds/initiate`, {});
       const json = await res.json();
+      if (res.status === 402) {
+        const msg = json?.error || "Limit reached";
+        window.location.href = `/pricing?reason=${encodeURIComponent(msg)}`;
+        return;
+      }
       if (!res.ok) throw new Error(json?.error || "Failed to initiate");
       window.location.href = `/feed/${json.report_id}`;
-    } catch (e: any) {
-      setError(e.message || "Failed to initiate");
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Failed to initiate";
+      setError(msg);
     } finally {
       setCreating(false);
     }
@@ -87,6 +106,11 @@ export default function FeedPage() {
     try {
       const res = await api.post(`/api/articles`, { suggestion_id: suggestionId });
       const json = await res.json();
+      if (res.status === 402) {
+        const msg = json?.error || "Limit reached";
+        window.location.href = `/pricing?reason=${encodeURIComponent(msg)}`;
+        return;
+      }
       if (!res.ok) throw new Error(json?.error || "Failed to start generation");
       const articleId: string = json.article_id;
       setArticlesBySuggestion((prev) => ({
@@ -95,10 +119,10 @@ export default function FeedPage() {
       }));
       // Poll until ready/failed
       await pollArticleUntilReady(suggestionId, articleId);
-    } catch (e: any) {
+    } catch (e: unknown) {
       setArticlesBySuggestion((prev) => ({
         ...prev,
-        [suggestionId]: { ...(prev[suggestionId] || {}), loading: false, error: e.message || "Failed" },
+        [suggestionId]: { ...(prev[suggestionId] || {}), loading: false, error: (e instanceof Error ? e.message : "Failed") },
       }));
     }
   }
@@ -126,11 +150,11 @@ export default function FeedPage() {
           }));
           return;
         }
-      } catch (e: any) {
+      } catch (e: unknown) {
         // keep polling but record transient error
         setArticlesBySuggestion((prev) => ({
           ...prev,
-          [suggestionId]: { ...(prev[suggestionId] || {}), error: e.message || "Error fetching article" },
+          [suggestionId]: { ...(prev[suggestionId] || {}), error: (e instanceof Error ? e.message : "Error fetching article") },
         }));
       }
       if (attempts < maxAttempts) {
@@ -191,7 +215,6 @@ export default function FeedPage() {
                         {(() => {
                           const st = articlesBySuggestion[s.id];
                           const loading = !!st?.loading;
-                          const hasArticle = !!st?.article && st.article.status === "ready";
                           const failed = st?.article?.status === "failed";
                           return (
                             <>

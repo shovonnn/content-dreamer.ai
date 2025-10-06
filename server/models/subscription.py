@@ -1,3 +1,4 @@
+import stripe
 from .db_utils import db
 from uuid import uuid4
 
@@ -15,7 +16,7 @@ class UserSubscription(db.Model):
     __tablename__ = 'user_subscriptions'
     id = db.Column(db.String(100), primary_key=True)
     user_id = db.Column(db.String(100), db.ForeignKey('user.id'), nullable=False, index=True)
-    plan_id = db.Column(db.String(50), db.ForeignKey('subscription_plans.id'), nullable=False)
+    plan_id = db.Column(db.String(50), nullable=False)
     stripe_customer_id = db.Column(db.String(200), nullable=True)
     stripe_subscription_id = db.Column(db.String(200), nullable=True)
     status = db.Column(db.String(20), default='active')  # active|past_due|canceled
@@ -23,7 +24,6 @@ class UserSubscription(db.Model):
     current_period_end = db.Column(db.DateTime, nullable=True)
 
     user = db.relationship('User', backref=db.backref('subscriptions', lazy=True))
-    plan = db.relationship('SubscriptionPlan', backref=db.backref('user_subscriptions', lazy=True))
 
     @classmethod
     def create(cls, user_id: str, plan_id: str, status: str = 'active'):
@@ -31,6 +31,11 @@ class UserSubscription(db.Model):
         db.session.add(rec)
         db.session.commit()
         return rec
+
+    def update_status(self):
+        subscription_obj = stripe.Subscription.retrieve(self.stripe_subscription_id)
+        self.status = subscription_obj.status
+        db.session.commit()
 
 
 class UsageQuota(db.Model):

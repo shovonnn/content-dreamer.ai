@@ -50,7 +50,7 @@ export function ProfileMenu() {
           </div>
           <div className="my-1 h-px" />
           <Link href="/dashboard" className="block px-3 py-2 text-sm hover:bg-slate-500 rounded-md">Dashboard</Link>
-          <Link href="/billing" className="block px-3 py-2 text-sm hover:bg-slate-500 rounded-md">Billing</Link>
+          <Link href="/pricing" className="block px-3 py-2 text-sm hover:bg-slate-500 rounded-md">Billing</Link>
           <Link href="/settings" className="block px-3 py-2 text-sm hover:bg-slate-500 rounded-md">Settings</Link>
           <div className="my-1 h-px bg-gray-100 dark:bg-slate-600" />
           <button onClick={() => api.logout()} className="w-full text-left px-3 py-2 text-sm rounded-md cursor-pointer">Log out</button>

@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { api } from "@/lib/apiClient";
+import PlanBadge from "@/components/PlanBadge";
 
 type Product = {
   id: string;
@@ -21,8 +22,9 @@ export default function DashboardPage() {
       const res = await api.get("/api/products");
       const json = await res.json();
       setProducts(json.products || []);
-    } catch (e: any) {
-      setError(e.message || "Failed to load");
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Failed to load";
+      setError(msg);
     } finally {
       setLoading(false);
     }
@@ -36,7 +38,10 @@ export default function DashboardPage() {
     <main className="min-h-screen">
       <div className="mx-auto max-w-6xl px-6 py-10">
         <div className="flex items-center justify-between">
-          <h1 className="text-3xl font-bold">Dashboard</h1>
+          <div className="flex items-center gap-3">
+            <h1 className="text-3xl font-bold">Dashboard</h1>
+            <PlanBadge />
+          </div>
           <div className="flex items-center gap-3">
             <Link href="/product/new" className="rounded-md bg-brand-600 text-sm px-3 py-2 hover:bg-brand-700">Add New Product</Link>
           </div>

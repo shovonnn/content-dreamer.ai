@@ -38,6 +38,12 @@ export default function TryItForm() {
       const guest_id = ensureGuestId();
       const res = await api.post(`/api/feeds/initiate`, { product_name: name, product_description: desc, guest_id });
       const data = await res.json();
+      if (res.status === 402) {
+        // Quota exceeded → prompt upgrade
+        const msg = data?.error || "Limit reached";
+        window.location.href = `/pricing?reason=${encodeURIComponent(msg)}`;
+        return;
+      }
       if (!res.ok) throw new Error(data?.error || "Failed to initiate report");
       if (data.prompt_login) {
         // redirect to login with next param to add product page

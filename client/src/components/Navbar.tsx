@@ -22,9 +22,9 @@ export function Navbar() {
           <span>Content Dreamer</span>
         </Link>
         <nav className="hidden md:flex items-center gap-6 text-sm">
-          <a href="#features" className="hover:text-brand-600">Features</a>
-          <a href="#pricing" className="hover:text-brand-600">Pricing</a>
-          <a href="#faq" className="hover:text-brand-600">FAQ</a>
+          <Link href="/#features" className="hover:text-brand-600">Features</Link>
+          <Link href="/#pricing" className="hover:text-brand-600">Pricing</Link>
+          <Link href="/#faq" className="hover:text-brand-600">FAQ</Link>
           <Link href="/dashboard" className="hover:text-brand-600">Dashboard</Link>
         </nav>
         <div className="flex items-center gap-3">
