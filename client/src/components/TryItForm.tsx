@@ -39,6 +39,12 @@ export default function TryItForm() {
       const res = await api.post(`/api/feeds/initiate`, { product_name: name, product_description: desc, guest_id });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || "Failed to initiate report");
+      if (data.prompt_login) {
+        // redirect to login with next param to add product page
+        const next = encodeURIComponent(`/dashboard`);
+        window.location.href = `/login?next=${next}`;
+        return;
+      }
       router.push(`/feed/${data.report_id}?guest_id=${encodeURIComponent(guest_id)}`);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Something went wrong";

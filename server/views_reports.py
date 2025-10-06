@@ -56,7 +56,7 @@ def initiate_report():
     if not user_id and guest_id:
         existing = Report.query.filter_by(guest_id=guest_id).first()
         if existing:
-            return jsonify({'report_id': existing.id}), 200
+            return jsonify({'report_id': existing.id, 'prompt_login': True}), 200
 
     prod = Product.create(name=name, description=desc, user_id=user_id, guest_id=guest_id)
     # Visibility cutoff from plan config (basic default for guests)
