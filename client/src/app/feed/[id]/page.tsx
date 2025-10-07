@@ -2,6 +2,8 @@
 import { useEffect, useState } from "react";
 import { useSearchParams, useParams } from "next/navigation";
 import { api } from "@/lib/apiClient";
+import { FaMagic } from "react-icons/fa";
+
 
 type SuggestionMeta = {
   description?: string;
@@ -218,15 +220,17 @@ export default function FeedPage() {
                           const failed = st?.article?.status === "failed";
                           return (
                             <>
-                              <button
-                                onClick={() => startGenerateArticle(s.id)}
-                                disabled={loading}
-                                className="inline-flex items-center gap-2 rounded-md bg-gray-500 border px-3 py-1.5 text-sm hover:bg-gray-400 cursor-pointer disabled:opacity-50"
-                                title="Generate full article"
-                              >
-                                <span>🌬️</span>
-                                <span>{loading ? "Generating…" : "Generate article"}</span>
-                              </button>
+                              {st?.article?.status !== "ready" && (
+                                <button
+                                  onClick={() => startGenerateArticle(s.id)}
+                                  disabled={loading}
+                                  className="inline-flex items-center gap-2 rounded-md bg-brand-600 border border-brand-600 px-3 py-1.5 text-sm hover:bg-brand-700 cursor-pointer disabled:opacity-50"
+                                  title="Generate full article"
+                                >
+                                  <FaMagic />
+                                  <span>{loading ? "Generating…" : "Generate article"}</span>
+                                </button>
+                              )}
                               {failed && (
                                 <span className="text-xs text-red-600">{st?.error || "Generation failed"}</span>
                               )}
@@ -240,7 +244,7 @@ export default function FeedPage() {
                       const art = st?.article;
                       if (!art || art.status !== "ready") return null;
                       return (
-                        <div className="mt-4 rounded-md border bg-gray-50 p-4">
+                        <div className="mt-4 rounded-md border dark:border-slate-500 bg-slate-950 p-4">
                           <div className="text-base font-semibold">{art.title}</div>
                           {art.content_html ? (
                             <div className="prose max-w-none mt-2" dangerouslySetInnerHTML={{ __html: art.content_html }} />
