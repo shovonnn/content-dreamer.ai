@@ -8,6 +8,7 @@ class Article(db.Model):
     report_id = db.Column(db.String(100), db.ForeignKey('reports.id'), nullable=False, index=True)
     suggestion_id = db.Column(db.String(100), db.ForeignKey('suggestions.id'), nullable=True)
     title = db.Column(db.String(300), nullable=False)
+    description = db.Column(db.Text, nullable=True)
     content_html = db.Column(db.Text, nullable=True)
     content_md = db.Column(db.Text, nullable=True)
     status = db.Column(db.String(20), default='generating')  # generating|ready|failed
@@ -18,12 +19,13 @@ class Article(db.Model):
     report = db.relationship('Report', backref=db.backref('articles', lazy=True))
 
     @classmethod
-    def create(cls, report_id: str, title: str, suggestion_id: str | None = None):
+    def create(cls, report_id: str, title: str, description: str | None = None, suggestion_id: str | None = None):
         rec = Article(
             id=str(uuid4()),
             report_id=report_id,
             suggestion_id=suggestion_id,
             title=title,
+            description=description,
             status='generating',
         )
         db.session.add(rec)

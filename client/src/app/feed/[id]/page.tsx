@@ -3,11 +3,13 @@ import { useEffect, useState } from "react";
 import { useSearchParams, useParams } from "next/navigation";
 import { api } from "@/lib/apiClient";
 import { FaMagic } from "react-icons/fa";
+import ArticleEditorModal from "@/components/ArticleEditorModal";
 
 
 type SuggestionMeta = {
   description?: string;
   reason?: string;
+  article_id?: string;
   source_tweet?: {
     id_str?: string; id?: string; url?: string;
     user_screen_name?: string; screen_name?: string; user_handle?: string; username?: string;
@@ -55,6 +57,8 @@ export default function FeedPage() {
     };
     error?: string | null;
   }>>({});
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [editorArticleId, setEditorArticleId] = useState<string | null>(null);
 
   useEffect(() => {
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -150,6 +154,11 @@ export default function FeedPage() {
               error: status === "failed" ? (json.error || "Generation failed") : null,
             },
           }));
+          // If generated successfully, open in editor directly
+          if (status === "ready") {
+            setEditorArticleId(articleId);
+            setEditorOpen(true);
+          }
           return;
         }
       } catch (e: unknown) {
@@ -172,6 +181,7 @@ export default function FeedPage() {
   }
 
   return (
+    <>
     <main className="">
       <div className="mx-auto max-w-4xl px-6 py-12">
         <h1 className="text-3xl font-bold">Content Feed</h1>
@@ -218,9 +228,13 @@ export default function FeedPage() {
                           const st = articlesBySuggestion[s.id];
                           const loading = !!st?.loading;
                           const failed = st?.article?.status === "failed";
+                          const existingArticleId = (s.meta?.article_id) as string | undefined;
+                          const showOpenEditor = !!existingArticleId || (st?.article?.status === "ready" && st.article?.id);
+                          const articleIdToOpen = existingArticleId || st?.article?.id || st?.articleId;
                           return (
                             <>
-                              {st?.article?.status !== "ready" && (
+                              {/* Hide Generate if we already have an article id in meta */}
+                              {!showOpenEditor && (
                                 <button
                                   onClick={() => startGenerateArticle(s.id)}
                                   disabled={loading}
@@ -231,6 +245,16 @@ export default function FeedPage() {
                                   <span>{loading ? "Generating…" : "Generate article"}</span>
                                 </button>
                               )}
+                              {showOpenEditor && articleIdToOpen && (
+                                <button
+                                  onClick={() => { setEditorArticleId(articleIdToOpen); setEditorOpen(true); }}
+                                  className="inline-flex items-center gap-2 rounded-md border px-3 py-1.5 text-sm hover:bg-slate-800 border-slate-500"
+                                  title="Open in editor"
+                                >
+                                  ✏️
+                                  <span>Open in editor</span>
+                                </button>
+                              )}
                               {failed && (
                                 <span className="text-xs text-red-600">{st?.error || "Generation failed"}</span>
                               )}
@@ -239,21 +263,7 @@ export default function FeedPage() {
                         })()}
                       </div>
                     )}
-                    {isHeadline && (() => {
-                      const st = articlesBySuggestion[s.id];
-                      const art = st?.article;
-                      if (!art || art.status !== "ready") return null;
-                      return (
-                        <div className="mt-4 rounded-md border dark:border-slate-500 bg-slate-950 p-4">
-                          <div className="text-base font-semibold">{art.title}</div>
-                          {art.content_html ? (
-                            <div className="prose max-w-none mt-2" dangerouslySetInnerHTML={{ __html: art.content_html }} />
-                          ) : (
-                            <pre className="mt-2 whitespace-pre-wrap text-sm text-gray-800">{art.content_md}</pre>
-                          )}
-                        </div>
-                      );
-                    })()}
+                    {/* Don't auto-render the article below; we'll open the editor instead */}
                     {isReply && s.meta?.source_tweet && (
                       <div className="mt-3 rounded-md bg-gray-50 p-3 text-sm">
                         <div className="flex items-center gap-2 text-gray-500 text-xs">
@@ -297,5 +307,22 @@ export default function FeedPage() {
         )}
       </div>
     </main>
+    <ArticleEditorModal
+      isOpen={editorOpen}
+      articleId={editorArticleId}
+      onClose={() => setEditorOpen(false)}
+      onSaved={(a) => {
+        // reflect latest content in local state if present
+        if (!a?.id) return;
+        const sid = Object.keys(articlesBySuggestion).find(k => articlesBySuggestion[k]?.articleId === a.id || articlesBySuggestion[k]?.article?.id === a.id);
+        if (sid) {
+          setArticlesBySuggestion(prev => ({
+            ...prev,
+            [sid]: { ...(prev[sid] || {}), article: { ...(prev[sid]?.article || {} as Record<string, unknown>), ...a }, articleId: a.id }
+          }));
+        }
+      }}
+    />
+    </>
   );
 }

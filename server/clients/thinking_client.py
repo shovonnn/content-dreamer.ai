@@ -120,3 +120,24 @@ class ThinkingClient:
         except Exception as e:
             logger.error(e)
             return None
+
+    def article_content(self, title: str, description: str, more_context: str = None) -> Optional[dict]:
+        system = (
+            'Write a detailed, long-form article based on the title and context provided. The article should be well-structured with an engaging introduction, informative body, and concise conclusion. Use subheadings, bullet points, and other formatting tools to enhance readability. Ensure the content is original, provides value to the reader, and is relevant to the product description. Avoid promotional language but subtly align the content with the product\'s purpose. '
+            'Return as JSON {"title":"...", "content_md":"..."}'
+        )
+        user_msg = f"Title: {title}\nDescription: {description}."
+        if more_context:
+            user_msg += f" Helpful Context: {more_context[:10000]}"
+        try:
+            out = get_reply_json(self.user, system, user_msg)
+            art = out.get('content_md')
+            if not isinstance(art, str) or not art.strip():
+                return None
+            title_out = out.get('title')
+            if not isinstance(title_out, str) or not title_out.strip():
+                title_out = title
+            return {'title': title_out, 'content_md': art}
+        except Exception as e:
+            logger.error(e)
+            return None

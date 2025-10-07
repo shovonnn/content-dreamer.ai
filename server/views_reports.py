@@ -19,6 +19,7 @@ from stripe_util import webhook_secret
 import json
 from config import logger
 import config as config
+from markdown import markdown as md_to_html
 
 bp_reports = Blueprint('bp_reports', __name__)
 
@@ -226,7 +227,7 @@ def get_report(rid):
         },
         'status': rep.status,
         'partial': partial,
-        'suggestions': suggestions,
+    'suggestions': suggestions,
         'steps': [{'step_name': st.step_name, 'status': st.status} for st in rep.steps],
     }), 200
 
@@ -263,7 +264,17 @@ def create_article():
     ok, reason = _enforce_quota(current_user_id, kind='article')
     if not ok:
         return jsonify({'error': reason, 'upgrade_required': True}), 402
-    art = Article.create(report_id=rep.id, title=sug.text[:140], suggestion_id=sug.id)
+    meta = json.loads(sug.meta_json) if sug.meta_json else {}
+    art = Article.create(report_id=rep.id, title=sug.text, description=meta.get('description'), suggestion_id=sug.id)
+    # persist article_id into suggestion meta for future quick access on the client
+    try:
+        meta = meta or {}
+        meta['article_id'] = art.id
+        sug.meta_json = json.dumps(meta)
+        db.session.add(sug)
+        db.session.commit()
+    except Exception:
+        logger.exception("Failed to persist article_id into suggestion meta")
     # enqueue article generation
     q.enqueue('workers.generate_article', art.id, job_timeout='15m')
     return jsonify({'article_id': art.id, 'status': art.status}), 200
@@ -278,6 +289,43 @@ def get_article(aid):
     current_user_id = get_jwt_identity()
     if art.report.user_id != current_user_id:
         abort(403)
+    return jsonify({
+        'id': art.id,
+        'title': art.title,
+        'content_html': art.content_html,
+        'content_md': art.content_md,
+        'status': art.status,
+        'error': art.error_message,
+    }), 200
+
+
+@bp_reports.route('/api/articles/<aid>', methods=['PUT'])
+@jwt_required()
+def update_article(aid):
+    art = Article.query.get(aid)
+    if not art:
+        abort(404)
+    current_user_id = get_jwt_identity()
+    if art.report.user_id != current_user_id:
+        abort(403)
+    data = request.get_json(force=True, silent=True) or {}
+    title = (data.get('title') or '').strip()
+    content_md = data.get('content_md')
+    if title:
+        art.title = title
+    if content_md is not None:
+        # Normalize to string and compute HTML
+        art.content_md = content_md
+        try:
+            art.content_html = md_to_html(content_md or '')
+        except Exception:
+            logger.exception('Failed to render markdown to HTML')
+            art.content_html = None
+    # Consider edited article as ready
+    if art.status != 'ready':
+        art.status = 'ready'
+    db.session.add(art)
+    db.session.commit()
     return jsonify({
         'id': art.id,
         'title': art.title,

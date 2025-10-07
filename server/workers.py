@@ -371,17 +371,36 @@ def generate_report(report_id: str):
 
 def generate_article(article_id: str):
     with _app_context():
+        from markdown import markdown
         art = Article.query.get(article_id)
+        thinker = ThinkingClient(user=getattr(art.report.product, 'user', None)) if art else None
         if not art:
             logger.error(f"Article {article_id} not found")
             return
         try:
             # Minimal content placeholder until full prompt designed
-            art.content_md = f"# {art.title}\n\n(Generated content will appear here.)"
-            art.content_html = f"<h1>{art.title}</h1><p>(Generated content will appear here.)</p>"
+            content = thinker.article_content(art.title, art.description or "")
+            art.content_md = content.get('content_md')
+            art.content_html = markdown(content.get('content_md', ''))
             art.status = 'ready'
             db.session.add(art)
             db.session.commit()
+            # fetch suggestion and add article details to its meta
+            if art.suggestion_id:
+                sug = Suggestion.query.get(art.suggestion_id)
+                if sug:
+                    try:
+                        meta = json.loads(sug.meta_json or '{}')
+                    except Exception:
+                        meta = {}
+                    meta.update({
+                        "article_id": art.id,
+                        "article_title": art.title,
+                        "article_description": art.description,
+                    })
+                    sug.meta_json = json.dumps(meta)
+                    db.session.add(sug)
+                    db.session.commit()
         except Exception as e:
             logger.exception(e)
             art.status = 'failed'

@@ -52,6 +52,7 @@ flask-basicauth = "^0.2.0"
 faker = "^37.4.0"
 firebase-admin = "^7.1.0"
 google-cloud-speech = "^2.33.0"
+markdown = "^3.9"
 
 [tool.poetry.dev-dependencies]
 
