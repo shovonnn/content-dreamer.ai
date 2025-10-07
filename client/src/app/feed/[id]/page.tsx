@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import Image from "next/image";
 import { useSearchParams, useParams } from "next/navigation";
 import { api } from "@/lib/apiClient";
 import { FaMagic } from "react-icons/fa";
@@ -10,6 +11,8 @@ type SuggestionMeta = {
   description?: string;
   reason?: string;
   article_id?: string;
+  meme_id?: string;
+  instructions?: unknown;
   source_tweet?: {
     id_str?: string; id?: string; url?: string;
     user_screen_name?: string; screen_name?: string; user_handle?: string; username?: string;
@@ -59,6 +62,12 @@ export default function FeedPage() {
   }>>({});
   const [editorOpen, setEditorOpen] = useState(false);
   const [editorArticleId, setEditorArticleId] = useState<string | null>(null);
+  const [memesBySuggestion, setMemesBySuggestion] = useState<Record<string, {
+    loading: boolean;
+    memeId?: string;
+    status?: string;
+    error?: string | null;
+  }>>({});
 
   useEffect(() => {
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -131,6 +140,69 @@ export default function FeedPage() {
         [suggestionId]: { ...(prev[suggestionId] || {}), loading: false, error: (e instanceof Error ? e.message : "Failed") },
       }));
     }
+  }
+
+  async function startGenerateMeme(suggestionId: string) {
+    setMemesBySuggestion((prev) => ({
+      ...prev,
+      [suggestionId]: { ...(prev[suggestionId] || {}), loading: true, error: null },
+    }));
+    try {
+      const res = await api.post(`/api/memes`, { suggestion_id: suggestionId });
+      const json = await res.json();
+      if (res.status === 402) {
+        const msg = json?.error || "Limit reached";
+        window.location.href = `/pricing?reason=${encodeURIComponent(msg)}`;
+        return;
+      }
+      if (!res.ok) throw new Error(json?.error || "Failed to start meme generation");
+      const memeId: string = json.meme_id;
+      setMemesBySuggestion((prev) => ({
+        ...prev,
+        [suggestionId]: { ...(prev[suggestionId] || {}), loading: true, memeId, status: json.status },
+      }));
+      await pollMemeUntilReady(suggestionId, memeId);
+    } catch (e: unknown) {
+      setMemesBySuggestion((prev) => ({
+        ...prev,
+        [suggestionId]: { ...(prev[suggestionId] || {}), loading: false, error: (e instanceof Error ? e.message : "Failed") },
+      }));
+    }
+  }
+
+  async function pollMemeUntilReady(suggestionId: string, memeId: string) {
+    let attempts = 0;
+    const maxAttempts = 400; // ~10 mins
+    async function tick() {
+      attempts += 1;
+      try {
+        const res = await api.get(`/api/memes/${memeId}`);
+        const json = await res.json();
+        if (!res.ok) throw new Error(json?.error || "Fetch failed");
+        const status = json.status as string;
+        if (status === "ready" || status === "failed") {
+          setMemesBySuggestion((prev) => ({
+            ...prev,
+            [suggestionId]: { ...(prev[suggestionId] || {}), loading: false, memeId, status, error: status === "failed" ? (json.error || "Generation failed") : null },
+          }));
+          return;
+        }
+      } catch (e: unknown) {
+        setMemesBySuggestion((prev) => ({
+          ...prev,
+          [suggestionId]: { ...(prev[suggestionId] || {}), error: (e instanceof Error ? e.message : "Error fetching meme") },
+        }));
+      }
+      if (attempts < maxAttempts) {
+        setTimeout(tick, 1500);
+      } else {
+        setMemesBySuggestion((prev) => ({
+          ...prev,
+          [suggestionId]: { ...(prev[suggestionId] || {}), loading: false, error: "Timed out" },
+        }));
+      }
+    }
+    setTimeout(tick, 1500);
   }
 
   async function pollArticleUntilReady(suggestionId: string, articleId: string) {
@@ -208,7 +280,8 @@ export default function FeedPage() {
                 const isHeadline = s.kind === "article_headline";
                 const isTweet = s.kind === "tweet";
                 const isReply = s.kind === "tweet_reply";
-                const icon = isHeadline ? "📰" : isReply ? "💬" : isTweet ? "🐦" : "✨";
+                const isMemeConcept = s.kind === "meme_concept";
+                const icon = isHeadline ? "📰" : isReply ? "💬" : isTweet ? "🐦" : isMemeConcept ? "🖼️" : "✨";
                 return (
                   <div key={s.id} className="rounded-lg border border-slate-500 bg-slate-900 p-4">
                     <div className="text-xs text-gray-500 flex items-center gap-2">
@@ -259,6 +332,56 @@ export default function FeedPage() {
                                 <span className="text-xs text-red-600">{st?.error || "Generation failed"}</span>
                               )}
                             </>
+                          );
+                        })()}
+                      </div>
+                    )}
+                    {isMemeConcept && (
+                      <div className="mt-3 flex flex-col gap-3">
+                        {(() => {
+                          const st = memesBySuggestion[s.id];
+                          const loading = !!st?.loading;
+                          const existingMemeId = s.meta?.meme_id as string | undefined;
+                          const memeId = existingMemeId || st?.memeId;
+                          const isReady = st?.status === "ready" || (!!existingMemeId);
+                          return (
+                            <div className="flex items-center gap-3">
+                              {!isReady && (
+                                <button
+                                  onClick={() => startGenerateMeme(s.id)}
+                                  disabled={loading}
+                                  className="inline-flex items-center gap-2 rounded-md bg-brand-600 border border-brand-600 px-3 py-1.5 text-sm hover:bg-brand-700 cursor-pointer disabled:opacity-50"
+                                  title="Generate meme image"
+                                >
+                                  🪄
+                                  <span>{loading ? "Generating…" : "Generate meme"}</span>
+                                </button>
+                              )}
+                              {memeId && isReady && (
+                                <a
+                                  href={`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001"}/api/memes/${memeId}/image`}
+                                  target="_blank"
+                                  className="inline-flex items-center gap-2 rounded-md border px-3 py-1.5 text-sm hover:bg-slate-800 border-slate-500"
+                                >
+                                  ⬇️ <span>Open/Download</span>
+                                </a>
+                              )}
+                              {st?.status === "failed" && (
+                                <span className="text-xs text-red-600">{st?.error || "Generation failed"}</span>
+                              )}
+                            </div>
+                          );
+                        })()}
+                        {(() => {
+                          const existingMemeId = s.meta?.meme_id as string | undefined;
+                          const memeId = existingMemeId || memesBySuggestion[s.id]?.memeId;
+                          const isReady = memesBySuggestion[s.id]?.status === "ready" || (!!existingMemeId);
+                          if (!memeId || !isReady) return null;
+                          const src = `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001"}/api/memes/${memeId}/image`;
+                          return (
+                            <div className="mt-2">
+                              <Image src={src} alt="Generated meme" width={1024} height={1024} className="max-h-[420px] h-auto w-auto rounded-md border border-slate-700" />
+                            </div>
                           );
                         })()}
                       </div>

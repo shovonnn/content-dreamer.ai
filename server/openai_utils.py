@@ -97,3 +97,24 @@ def get_reply(user: User | None, system_content, user_msg, additional_messages=N
         CreditLedger.create(user.id, 0, cost, model)
 
     return response.choices[0].message.content
+
+
+def generate_image_base64(prompt: str, size: str = '1024x1024') -> str:
+    """Generate an image with OpenAI image model and return base64 PNG string.
+
+    Uses gpt-image-1 per product spec. May raise on failure.
+    """
+    try:
+        res = openai_client.images.generate(
+            model='gpt-image-1',
+            prompt=prompt,
+            size=size,
+            quality="high",
+        )
+        data = res.data[0].b64_json if getattr(res, 'data', None) else None
+        if not data:
+            raise RuntimeError('No image data returned')
+        return data
+    except Exception as e:
+        logger.exception(e)
+        raise

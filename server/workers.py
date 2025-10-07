@@ -4,7 +4,7 @@ from models.report_step import ReportStep
 from models.suggestion import Suggestion
 from models.article import Article
 from models.product import Product
-from openai_utils import get_reply_json
+from openai_utils import get_reply_json, generate_image_base64
 from config import logger, serpapi_key, rapidapi_key, enable_twitter, enable_medium
 import json
 from clients.twitter_client import TwitterClient, TweetSummary
@@ -13,6 +13,7 @@ from clients.serp_client import SerpApiClient
 from clients.thinking_client import ThinkingClient
 import random
 from typing import List, Dict, Any, Optional
+from models.meme import Meme
 
 
 def _app_context():
@@ -165,6 +166,14 @@ def generate_report(report_id: str):
                 except Exception as e:
                     logger.error(f"add_reply failed: {e}")
 
+            def add_meme_concept(concept: str, source_type: str, visibility='subscriber', rank: float = 0.5, meta: Optional[dict] = None):
+                try:
+                    m = meta or {}
+                    # kind: 'meme_concept' to distinguish in UI
+                    Suggestion.add(rep.id, source_type, 'meme_concept', concept, rank, json.dumps(m), visibility)
+                except Exception as e:
+                    logger.error(f"add_meme_concept failed: {e}")
+
             # 6. Headlines per trending topic
             for tp in topics[:10]:
                 if tp not in tweets_by_topic:
@@ -214,6 +223,32 @@ def generate_report(report_id: str):
                                 "topic": tp,
                                 "reason": f"Tweet idea based on trending topic '{tp}'",
                             },
+                        )
+                except Exception as e:
+                    logger.error(e)
+
+            # 7b. Meme concepts per trending topic
+            for tp in topics[:10]:
+                try:
+                    twts = tweets_by_topic.get(tp)
+                    context = None
+                    if twts:
+                        context = "\n".join([
+                            *(t.text for t in (twts.top or [])[:5]),
+                            *(t.text for t in (twts.latest or [])[:5])
+                        ])
+                    memes = thinker.meme_ideas_from_twitter(product.name, product.description or "", tp, context, n=2)
+                    for i, m in enumerate(memes):
+                        add_meme_concept(
+                            m.get('concept') or 'Meme idea',
+                            'trending_topic',
+                            'guest' if i < 1 else 'subscriber',
+                            rank=0.55 - i*0.05,
+                            meta={
+                                "topic": tp,
+                                "instructions": m.get('instructions'),
+                                "reason": f"Meme idea based on trending topic '{tp}'",
+                            }
                         )
                 except Exception as e:
                     logger.error(e)
@@ -294,6 +329,31 @@ def generate_report(report_id: str):
                         )
                 except Exception as e:
                     logger.error(e)
+
+            # 9b. Meme concepts based on Medium tags/titles
+            for tg in medium_tags[:10]:
+                arts = trending_by_tag.get(tg) or []
+                for a in arts[:3]:
+                    title = getattr(a, 'title', '')
+                    subtitle = getattr(a, 'subtitle', '')
+                    try:
+                        memes = thinker.meme_ideas_from_medium(product.name, product.description or "", title, subtitle, n=1)
+                        for m in memes:
+                            add_meme_concept(
+                                m.get('concept') or 'Meme idea',
+                                'medium_tag',
+                                'subscriber',
+                                rank=0.5,
+                                meta={
+                                    "tag": tg,
+                                    "title": title,
+                                    "subtitle": subtitle,
+                                    "instructions": m.get('instructions'),
+                                    "reason": f"Meme idea inspired by Medium article '{title}'",
+                                }
+                            )
+                    except Exception as e:
+                        logger.error(e)
 
             # 10. Witty replies for every fetched tweet (rank and keep top 5 per source)
             def top_replies_for(items, source_key, source_label=None):
@@ -406,4 +466,76 @@ def generate_article(article_id: str):
             art.status = 'failed'
             art.error_message = str(e)
             db.session.add(art)
+            db.session.commit()
+
+
+def generate_meme(meme_id: str):
+    with _app_context():
+        mem = Meme.query.get(meme_id)
+        if not mem:
+            logger.error(f"Meme {meme_id} not found")
+            return
+        try:
+            # Build a text prompt from instructions_json
+            prompt_parts = []
+            if mem.concept:
+                prompt_parts.append(f"Concept: {mem.concept}")
+            try:
+                instr = json.loads(mem.instructions_json or '{}')
+            except Exception:
+                instr = {}
+            template = instr.get('template')
+            scene_description = instr.get('scene_description')
+            style = instr.get('style')
+            overlays = instr.get('text_overlays') or []
+            if template:
+                prompt_parts.append(f"Template: {template}")
+            if scene_description:
+                prompt_parts.append(f"Scene: {scene_description}")
+            if style:
+                prompt_parts.append(f"Style: {style}")
+            if overlays:
+                texts = "; ".join([f"{(o.get('position') or 'center')}: {o.get('text')}" for o in overlays if isinstance(o, dict)])
+                prompt_parts.append(f"Text: {texts}")
+            prompt = "\n".join(prompt_parts) or (mem.concept or 'Create a witty internet meme image')
+            img_b64 = generate_image_base64(prompt, size='1024x1024')
+            # Save to local static and store path
+            import base64 as _b64, os
+            from uuid import uuid4 as _uuid4
+            data = _b64.b64decode(img_b64)
+            # Determine directory and ensure it exists
+            rel_dir = f"uploads/memes/{mem.report_id}"
+            base_dir = os.path.dirname(os.path.abspath(__file__))
+            root = os.path.join(base_dir, 'static', rel_dir)
+            os.makedirs(root, exist_ok=True)
+            fname = f"{_uuid4().hex}.png"
+            dest = os.path.join(root, fname)
+            with open(dest, 'wb') as f:
+                f.write(data)
+            # Store relative path (under static)
+            mem.image_path = f"{rel_dir}/{fname}"
+            # Clear heavy columns if previously used
+            mem.image_bytes = None
+            mem.image_b64 = None
+            mem.status = 'ready'
+            mem.model_used = 'gpt-image-1'
+            db.session.add(mem)
+            db.session.commit()
+            # backfill suggestion meta with meme_id
+            if mem.suggestion_id:
+                sug = Suggestion.query.get(mem.suggestion_id)
+                if sug:
+                    try:
+                        meta = json.loads(sug.meta_json or '{}')
+                    except Exception:
+                        meta = {}
+                    meta.update({"meme_id": mem.id})
+                    sug.meta_json = json.dumps(meta)
+                    db.session.add(sug)
+                    db.session.commit()
+        except Exception as e:
+            logger.exception(e)
+            mem.status = 'failed'
+            mem.error_message = str(e)
+            db.session.add(mem)
             db.session.commit()

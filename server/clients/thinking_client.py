@@ -141,3 +141,44 @@ class ThinkingClient:
         except Exception as e:
             logger.error(e)
             return None
+
+    def meme_ideas_from_twitter(self, product_name: str, description: str, topic: str, tweets_context: Optional[str] = None, n: int = 3) -> List[dict]:
+        """Generate meme concepts based on a trending topic and example tweets.
+
+        Returns a list of dicts: {"concept":"...","instructions":{...}}
+        """
+        system = (
+            f"""
+Generate {n} clever meme ideas that could resonate on Twitter/X based on the provided trending topic and example tweets. Each idea should:
+- Be concise and culturally aware without being offensive.
+- Align loosely with the product positioning but avoid direct promotion.
+- Include a structured JSON 'instructions' block for later image generation with fields: template (string, e.g., 'Drake Hotline Bling' or 'Original'), scene_description (string), text_overlays (array of {{position: 'top'|'bottom'|'left'|'right'|'center', text: string}}), style (string), and any constraints.
+Return JSON {{\"ideas\":[{{\"concept\":\"...\",\"instructions\":{{...}}}}]}}
+"""
+        )
+        user_msg = f"Product: {product_name}. Description: {description}. Trending topic: {topic}."
+        if tweets_context:
+            user_msg += f" Example tweets (context):\n{tweets_context[:8000]}"
+        try:
+            out = get_reply_json(self.user, system, user_msg)
+            items = out.get('ideas') or []
+            return items[:n] if isinstance(items, list) else []
+        except Exception as e:
+            logger.error(e)
+            return []
+
+    def meme_ideas_from_medium(self, product_name: str, description: str, title: str, subtitle: Optional[str] = None, n: int = 3) -> List[dict]:
+        system = (
+            f"""
+Generate {n} clever meme ideas inspired by the following Medium article title and subtitle. Each idea should include a 'concept' and an 'instructions' JSON block suitable for image generation. The 'instructions' must include: template, scene_description, text_overlays (array of {{position, text}}), and style.
+Return JSON {{\"ideas\":[{{\"concept\":\"...\",\"instructions\":{{...}}}}]}}
+"""
+        )
+        user_msg = f"Product: {product_name}. Description: {description}. Title: {title}. Subtitle: {subtitle or ''}"
+        try:
+            out = get_reply_json(self.user, system, user_msg)
+            items = out.get('ideas') or []
+            return items[:n] if isinstance(items, list) else []
+        except Exception as e:
+            logger.error(e)
+            return []

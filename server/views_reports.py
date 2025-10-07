@@ -7,6 +7,7 @@ from models.report import Report
 from models.report_step import ReportStep
 from models.suggestion import Suggestion
 from models.article import Article
+from models.meme import Meme
 from models.subscription import SubscriptionPlan, UserSubscription, UsageQuota
 from plans import get_plans
 from stripe_util import stripe
@@ -278,6 +279,83 @@ def create_article():
     # enqueue article generation
     q.enqueue('workers.generate_article', art.id, job_timeout='15m')
     return jsonify({'article_id': art.id, 'status': art.status}), 200
+
+
+@bp_reports.route('/api/memes', methods=['POST'])
+@jwt_required()
+def create_meme():
+    data = request.get_json(force=True, silent=True) or {}
+    suggestion_id = data.get('suggestion_id')
+    if not suggestion_id:
+        abort(400, 'suggestion_id required')
+    sug = Suggestion.query.get(suggestion_id)
+    if not sug:
+        abort(404)
+    rep = sug.report
+    current_user_id = get_jwt_identity()
+    if rep.user_id != current_user_id:
+        abort(403)
+    # reuse article quota for meme generation to keep it simple
+    ok, reason = _enforce_quota(current_user_id, kind='article')
+    if not ok:
+        return jsonify({'error': reason, 'upgrade_required': True}), 402
+    meta = json.loads(sug.meta_json) if sug.meta_json else {}
+    concept = sug.text
+    instructions_json = json.dumps(meta.get('instructions') or {})
+    mem = Meme.create(report_id=rep.id, suggestion_id=sug.id, concept=concept, instructions_json=instructions_json)
+    # enqueue meme generation
+    q.enqueue('workers.generate_meme', mem.id, job_timeout='10m')
+    return jsonify({'meme_id': mem.id, 'status': mem.status}), 200
+
+
+@bp_reports.route('/api/memes/<mid>', methods=['GET'])
+@jwt_required()
+def get_meme(mid):
+    mem = Meme.query.get(mid)
+    if not mem:
+        abort(404)
+    current_user_id = get_jwt_identity()
+    if mem.report.user_id != current_user_id:
+        abort(403)
+    return jsonify({
+        'id': mem.id,
+        'status': mem.status,
+        'concept': mem.concept,
+        'error': mem.error_message,
+    }), 200
+
+
+@bp_reports.route('/api/memes/<mid>/image', methods=['GET'])
+def get_meme_image(mid):
+    """Serve meme image as PNG for embedding or download.
+
+    This endpoint is public; clients should use the meme id stored in suggestion meta. We do not expose user-identifying info.
+    """
+    from flask import Response
+    mem = Meme.query.get(mid)
+    if not mem or mem.status != 'ready':
+        abort(404)
+    # If we have a saved file path, serve it
+    if getattr(mem, 'image_path', None):
+        import os
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        file_path = os.path.join(base_dir, 'static', mem.image_path) if not mem.image_path.startswith('static/') else os.path.join(base_dir, mem.image_path)
+        if os.path.exists(file_path):
+            with open(file_path, 'rb') as f:
+                data = f.read()
+            return Response(data, mimetype='image/png')
+    # Prefer bytes if present
+    if mem.image_bytes:
+        return Response(mem.image_bytes, mimetype='image/png')
+    # Fallback to base64 if present
+    if mem.image_b64:
+        import base64
+        try:
+            data = base64.b64decode(mem.image_b64)
+            return Response(data, mimetype='image/png')
+        except Exception:
+            pass
+    return jsonify({'error': 'No image available'}), 404
 
 
 @bp_reports.route('/api/articles/<aid>', methods=['GET'])
