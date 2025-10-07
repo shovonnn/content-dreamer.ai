@@ -325,9 +325,33 @@ def my_limits():
 
 @bp_reports.route('/api/products', methods=['GET'])
 def list_products():
-    """List products for current user or guest, including latest feed summary."""
+    """List products for current user or guest, including latest feed summary.
+
+    If both an authenticated user and a guest_id are present (client sends X-Guest-Id header or guest_id query param),
+    first merge any guest-owned products and reports into the user so the response reflects
+    a unified list after login.
+    """
     current_user = _current_user_or_none()
     guest_id = _request_guest_id()
+    # If user is logged in and a guest_id is provided, merge guest-owned items into the user
+    if current_user and guest_id:
+        uid = current_user.id
+        # Move products
+        guest_products = Product.query.filter_by(guest_id=guest_id).all()
+        changed = False
+        for p in guest_products:
+            p.user_id = uid
+            db.session.add(p)
+            changed = True
+        # Move reports
+        guest_reports = Report.query.filter_by(guest_id=guest_id).all()
+        for r in guest_reports:
+            r.user_id = uid
+            db.session.add(r)
+            changed = True
+        if changed:
+            db.session.commit()
+
     q = None
     if current_user:
         q = Product.query.filter_by(user_id=current_user.id)
