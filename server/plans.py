@@ -18,18 +18,18 @@ PLANS = [
     },
     {
         'id': 'pro',
-        'price_usd': 15,
+        'price_usd': 10,
         'stripe_price_id': os.getenv('STRIPE_PRICE_PRO'),
         'limits': {
             'products_per_user': 5,
             'content_generations_per_day': 5,
-            'articles_per_day': 5,
+            'articles_per_day': 10,
             'guest_visibility_cutoff': 5,
         },
     },
     {
         'id': 'advanced',
-        'price_usd': 50,
+        'price_usd': 25,
         'stripe_price_id': os.getenv('STRIPE_PRICE_ADVANCED'),
         'limits': {
             'products_per_user': -1,  # unlimited
