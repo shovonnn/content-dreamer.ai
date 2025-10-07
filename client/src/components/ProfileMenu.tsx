@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { api } from "@/lib/apiClient";
 
 type Me = { id: string; name: string | null; email: string | null; avatar_url?: string | null };
@@ -10,20 +11,46 @@ export function ProfileMenu() {
   const [me, setMe] = useState<Me | null>(null);
   const ref = useRef<HTMLDivElement>(null);
 
+  // Load current user; re-run whenever auth state changes
   useEffect(() => {
-    async function load() {
+    let mounted = true;
+    const load = async () => {
+      if (!api.isAuthenticated()) {
+        if (mounted) setMe(null);
+        return;
+      }
       try {
         const res = await api.get("/api/me");
         if (res.ok) {
-          const data = await res.json();
-          setMe(data as Me);
+          const data = (await res.json()) as Me;
+          if (mounted) setMe(data);
+        } else {
+          if (mounted) setMe(null);
         }
       } catch {
-        // ignore
+        if (mounted) setMe(null);
       }
-    }
+    };
+
     load();
+    api.onAuthChange(load);
+    return () => {
+      mounted = false;
+      api.offAuthChange(load);
+    };
   }, []);
+
+  // Opportunistically refresh profile when opening the menu
+  useEffect(() => {
+    if (!open) return;
+    if (me) return; // already loaded
+    (async () => {
+      try {
+        const res = await api.get("/api/me");
+        if (res.ok) setMe((await res.json()) as Me);
+      } catch {}
+    })();
+  }, [open, me]);
 
   useEffect(() => {
     function onDocClick(e: MouseEvent) {
@@ -39,14 +66,14 @@ export function ProfileMenu() {
   return (
     <div className="relative" ref={ref}>
       <button onClick={() => setOpen(v => !v)} className="flex items-center gap-2 rounded-xl border-slate-300 px-3 py-2 font-medium dark:bg-slate-900 hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-900 cursor-pointer">
-        <img src={avatar} alt="avatar" className="w-6 h-6 rounded-full border" />
+  <Image unoptimized src={avatar} alt="avatar" width={24} height={24} className="w-6 h-6 rounded-full border" />
         <span className="text-sm">{me?.name || me?.email || "Account"}</span>
       </button>
       {open && (
         <div className="absolute right-0 mt-2 w-56 rounded-xl border bg-slate-50 dark:bg-slate-900 dark:border-slate-700 shadow-lg p-2 z-50">
           <div className="px-3 py-2">
-            <div className="text-sm font-medium">{me?.name || "Your account"}</div>
-            <div className="text-xs truncate">{me?.email}</div>
+            <div className="text-sm font-medium">{me?.name || me?.email || "Your account"}</div>
+            {me?.email && <div className="text-xs truncate">{me.email}</div>}
           </div>
           <div className="my-1 h-px" />
           <Link href="/dashboard" className="block px-3 py-2 text-sm hover:bg-slate-500 rounded-md">Dashboard</Link>
