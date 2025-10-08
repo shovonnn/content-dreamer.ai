@@ -1,7 +1,5 @@
 "use client";
 
-type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
-
 type Tokens = {
   access_token: string;
   refresh_token: string;
@@ -182,7 +180,7 @@ export class ApiClient {
   public delete(path: string, options?: RequestOptions) {
     return this.request(path, { ...(options || {}), method: "DELETE" });
   }
-  public post(path: string, body?: any, options?: RequestOptions) {
+  public post<TBody = unknown>(path: string, body?: TBody, options?: RequestOptions) {
     return this.request(path, {
       ...(options || {}),
       method: "POST",
@@ -190,14 +188,14 @@ export class ApiClient {
       headers: body instanceof FormData ? options?.headers : { ...(options?.headers || {}), "Content-Type": "application/json" },
     });
   }
-  public put(path: string, body?: any, options?: RequestOptions) {
+  public put<TBody = unknown>(path: string, body?: TBody, options?: RequestOptions) {
     return this.request(path, {
       ...(options || {}),
       method: "PUT",
       body: JSON.stringify(body ?? {}),
     });
   }
-  public patch(path: string, body?: any, options?: RequestOptions) {
+  public patch<TBody = unknown>(path: string, body?: TBody, options?: RequestOptions) {
     return this.request(path, {
       ...(options || {}),
       method: "PATCH",

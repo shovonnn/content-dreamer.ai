@@ -1,3 +1,5 @@
+import Image from "next/image";
+
 export default function Showcase() {
   return (
     <section className="section">
@@ -13,7 +15,7 @@ export default function Showcase() {
         </div>
         <div className="order-1 md:order-2">
           <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-xl">
-            <img src="/window.svg" alt="Plan chart" className="w-full rounded-lg" />
+            <Image src="/window.svg" alt="Plan chart" className="w-full rounded-lg" width={800} height={600} />
           </div>
         </div>
       </div>

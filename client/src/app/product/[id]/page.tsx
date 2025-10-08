@@ -1,10 +1,13 @@
 "use client";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useParams } from "next/navigation";
 import { api } from "@/lib/apiClient";
 
 type Feed = { id: string; status: string; created_on?: string | null; completed_at?: string | null };
+type Product = { id: string; name: string; description: string; latest_feed?: Feed | null };
+type ProductsRes = { products?: Product[] };
+type FeedsRes = { feeds?: Feed[] };
 
 export default function ProductDetailPage() {
   const params = useParams<{ id: string }>();
@@ -16,14 +19,14 @@ export default function ProductDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
 
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
       // load product from list endpoint for now
       const res = await api.get("/api/products");
-      const json = await res.json();
-      const found = (json.products || []).find((p: any) => p.id === pid) || null;
+      const json: ProductsRes = await res.json();
+      const found = (json.products || []).find((p) => p.id === pid) || null;
       if (found) {
         setProduct({ id: found.id, name: found.name, description: found.description });
         setLatest(found.latest_feed || null);
@@ -31,23 +34,24 @@ export default function ProductDetailPage() {
         setProduct(null);
       }
       const r2 = await api.get(`/api/products/${pid}/feeds`);
-      const j2 = await r2.json();
+      const j2: FeedsRes = await r2.json();
       setFeeds(j2.feeds || []);
-    } catch (e: any) {
-      setError(e.message || "Failed to load");
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : "Failed to load";
+      setError(message);
     } finally {
       setLoading(false);
     }
-  }
+  }, [pid]);
 
-  useEffect(() => { load(); }, [pid]);
+  useEffect(() => { load(); }, [load]);
 
   async function generateNew() {
     setCreating(true);
     setError(null);
     try {
       const res = await api.post(`/api/products/${pid}/feeds/initiate`, {});
-      const json = await res.json();
+      const json: { error?: string; report_id?: string } = await res.json();
       if (res.status === 402) {
         const msg = json?.error || "Limit reached";
         window.location.href = `/pricing?reason=${encodeURIComponent(msg)}`;
@@ -56,8 +60,9 @@ export default function ProductDetailPage() {
       if (!res.ok) throw new Error(json?.error || "Failed to initiate");
       // navigate to feed page
       window.location.href = `/feed/${json.report_id}`;
-    } catch (e: any) {
-      setError(e.message || "Failed to initiate");
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : "Failed to initiate";
+      setError(message);
     } finally {
       setCreating(false);
     }

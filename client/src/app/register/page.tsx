@@ -1,10 +1,18 @@
 "use client";
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { api } from "@/lib/apiClient";
 
 export default function RegisterPage() {
+  return (
+    <Suspense fallback={null}>
+      <RegisterForm />
+    </Suspense>
+  );
+}
+
+function RegisterForm() {
   const router = useRouter();
   const search = useSearchParams();
   const rawNext = search.get("next") || "/";
@@ -22,8 +30,9 @@ export default function RegisterPage() {
     try {
       await api.register(name, email, password);
       router.push(next);
-    } catch (err: any) {
-      setError(err.message || "Registration failed");
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Registration failed";
+      setError(message);
     } finally {
       setLoading(false);
     }

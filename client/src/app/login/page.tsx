@@ -1,10 +1,18 @@
 "use client";
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { api } from "@/lib/apiClient";
 
 export default function LoginPage() {
+  return (
+    <Suspense fallback={null}>
+      <LoginForm />
+    </Suspense>
+  );
+}
+
+function LoginForm() {
   const router = useRouter();
   const search = useSearchParams();
   const rawNext = search.get("next") || "/";
@@ -21,8 +29,9 @@ export default function LoginPage() {
     try {
       await api.login(email, password);
       router.push(next);
-    } catch (err: any) {
-      setError(err.message || "Login failed");
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Login failed";
+      setError(message);
     } finally {
       setLoading(false);
     }

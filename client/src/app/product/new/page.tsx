@@ -19,11 +19,11 @@ export default function NewProductPage() {
     try {
       // Create product
       const r1 = await api.post(`/api/products`, { name, description: desc });
-      const p = await r1.json();
+      const p: { id: string; error?: string } = await r1.json();
       if (!r1.ok) throw new Error(p?.error || "Failed to create product");
       // Initiate feed for this product
       const r2 = await api.post(`/api/products/${p.id}/feeds/initiate`, {});
-      const f = await r2.json();
+      const f: { report_id?: string; error?: string } = await r2.json();
       if (r2.status === 402) {
         const msg = f?.error || "Limit reached";
         window.location.href = `/pricing?reason=${encodeURIComponent(msg)}`;
@@ -32,8 +32,9 @@ export default function NewProductPage() {
       if (!r2.ok) throw new Error(f?.error || "Failed to start feed");
       // Redirect to new feed page
       window.location.href = `/feed/${f.report_id}`;
-    } catch (e: any) {
-      setError(e.message || "Something went wrong");
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : "Something went wrong";
+      setError(message);
     } finally {
       setLoading(false);
     }

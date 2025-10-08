@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useSearchParams, useParams } from "next/navigation";
 import { api } from "@/lib/apiClient";
 
@@ -9,7 +9,23 @@ type Suggestion = {
   source_type: string;
   text: string;
   rank: number;
-  meta?: any | null;
+  meta?: {
+    reason?: string;
+    source_tweet?: {
+      id?: string;
+      id_str?: string;
+      url?: string;
+      text?: string;
+      like_count?: number;
+      retweet_count?: number;
+      reply_count?: number;
+      user_name?: string;
+      user_screen_name?: string;
+      screen_name?: string;
+      user_handle?: string;
+      username?: string;
+    } | null;
+  } | null;
 };
 
 type ReportRes = {
@@ -22,6 +38,14 @@ type ReportRes = {
 };
 
 export default function ReportPage() {
+  return (
+    <Suspense fallback={null}>
+      <ReportInner />
+    </Suspense>
+  );
+}
+
+function ReportInner() {
   const params = useParams<{ id: string }>();
   const search = useSearchParams();
   const guest_id = search.get("guest_id") || "";
@@ -29,7 +53,7 @@ export default function ReportPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    let timer: any;
+    let timer: ReturnType<typeof setTimeout> | undefined;
     async function fetchReport() {
       try {
   const res = await api.get(`/api/reports/${params.id}?guest_id=${encodeURIComponent(guest_id)}`);
@@ -39,8 +63,9 @@ export default function ReportPage() {
         if (json.status === "queued" || json.status === "running") {
           timer = setTimeout(fetchReport, 2000);
         }
-      } catch (e: any) {
-        setError(e.message || "Error");
+      } catch (e: unknown) {
+        const message = e instanceof Error ? e.message : "Error";
+        setError(message);
       }
     }
     fetchReport();
