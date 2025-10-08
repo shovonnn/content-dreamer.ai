@@ -64,7 +64,7 @@ def create_checkout_session():
     if not user:
         abort(404)
     sub = UserSubscription.query.filter_by(user_id=user.id).first()
-    if sub:
+    if sub and sub.stripe_subscription_id:
         sub.update_status()
         if sub.status in ('active', 'trialing') and sub.plan_id == plan_id:
             abort(400, 'You are already subscribed to this plan')
