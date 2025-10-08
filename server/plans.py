@@ -13,6 +13,7 @@ PLANS = [
             'products_per_user': 1,
             'content_generations_per_day': 1,
             'articles_per_day': 1,
+            'videos_per_day': 0,
             'guest_visibility_cutoff': 5,
         },
     },
@@ -24,6 +25,7 @@ PLANS = [
             'products_per_user': 5,
             'content_generations_per_day': 5,
             'articles_per_day': 10,
+            'videos_per_day': 2,
             'guest_visibility_cutoff': 5,
         },
     },
@@ -35,6 +37,7 @@ PLANS = [
             'products_per_user': -1,  # unlimited
             'content_generations_per_day': -1,
             'articles_per_day': -1,
+            'videos_per_day': 10,
             'guest_visibility_cutoff': 5,
         },
     },

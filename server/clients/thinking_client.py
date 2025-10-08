@@ -182,3 +182,51 @@ Return JSON {{\"ideas\":[{{\"concept\":\"...\",\"instructions\":{{...}}}}]}}
         except Exception as e:
             logger.error(e)
             return []
+
+    def slop_ideas_from_twitter(self, product_name: str, description: str, topic: str, tweets_context: Optional[str] = None, n: int = 2) -> List[dict]:
+        """Generate 'AI slop' 8s vertical video ideas based on a trending topic and tweets.
+
+        Returns a list of dicts: {"concept":"...","instructions":{...}} where instructions includes
+        fields like: scene_description, weirdness_level (0-10), visual_motifs, motion_style, sound_cues.
+        """
+        system = (
+            f"""
+Create {n} quirky, weirdly funny 'AI slop' short video ideas tailored for 9:16, ~8 seconds. Each should be meme-adjacent, visually striking, and absurd but safe.
+For each idea, return JSON with keys: concept (string), instructions (object) where instructions includes:
+- scene_description: one vivid paragraph
+- weirdness_level: integer 0-10 (favor 6-9)
+- visual_motifs: array of strings (e.g., "goo", "melting UI", "rubber ducks")
+- motion_style: string (e.g., "fast zooms", "wobble", "jittery cuts")
+- color_palette: string
+- sound_cues: array of strings (e.g., "glitch pop", "slime squish")
+- constraints: {{duration_seconds: 8, aspect_ratio: "9:16"}}
+Return JSON {{"ideas":[{{"concept":"...","instructions":{{...}}}}]}}
+"""
+        )
+        user_msg = f"Product: {product_name}. Description: {description}. Trending topic: {topic}."
+        if tweets_context:
+            user_msg += f" Example tweets (context):\n{tweets_context[:8000]}"
+        try:
+            out = get_reply_json(self.user, system, user_msg)
+            items = out.get('ideas') or []
+            return items[:n] if isinstance(items, list) else []
+        except Exception as e:
+            logger.error(e)
+            return []
+
+    def slop_ideas_from_medium(self, product_name: str, description: str, title: str, subtitle: Optional[str] = None, n: int = 2) -> List[dict]:
+        system = (
+            f"""
+Create {n} 'AI slop' vertical short video ideas (~8 seconds) inspired by the following Medium title/subtitle. Make them surreal yet safe, humorous, and eye-catching.
+Return JSON with items having: concept (string), instructions (object) with fields scene_description, weirdness_level (6-9 preferred), visual_motifs, motion_style, color_palette, sound_cues, constraints ({{duration_seconds:8, aspect_ratio:"9:16"}}).
+Return JSON {{"ideas":[{{"concept":"...","instructions":{{...}}}}]}}
+"""
+        )
+        user_msg = f"Product: {product_name}. Description: {description}. Title: {title}. Subtitle: {subtitle or ''}"
+        try:
+            out = get_reply_json(self.user, system, user_msg)
+            items = out.get('ideas') or []
+            return items[:n] if isinstance(items, list) else []
+        except Exception as e:
+            logger.error(e)
+            return []

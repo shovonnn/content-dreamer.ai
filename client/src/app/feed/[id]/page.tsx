@@ -12,6 +12,7 @@ type SuggestionMeta = {
   reason?: string;
   article_id?: string;
   meme_id?: string;
+  slop_id?: string;
   instructions?: unknown;
   source_tweet?: {
     id_str?: string; id?: string; url?: string;
@@ -65,6 +66,12 @@ export default function FeedPage() {
   const [memesBySuggestion, setMemesBySuggestion] = useState<Record<string, {
     loading: boolean;
     memeId?: string;
+    status?: string;
+    error?: string | null;
+  }>>({});
+  const [slopsBySuggestion, setSlopsBySuggestion] = useState<Record<string, {
+    loading: boolean;
+    slopId?: string;
     status?: string;
     error?: string | null;
   }>>({});
@@ -205,6 +212,69 @@ export default function FeedPage() {
     setTimeout(tick, 1500);
   }
 
+  async function startGenerateSlop(suggestionId: string) {
+    setSlopsBySuggestion((prev) => ({
+      ...prev,
+      [suggestionId]: { ...(prev[suggestionId] || {}), loading: true, error: null },
+    }));
+    try {
+      const res = await api.post(`/api/slops`, { suggestion_id: suggestionId });
+      const json = await res.json();
+      if (res.status === 402) {
+        const msg = json?.error || "Limit reached";
+        window.location.href = `/pricing?reason=${encodeURIComponent(msg)}`;
+        return;
+      }
+      if (!res.ok) throw new Error(json?.error || "Failed to start slop generation");
+      const slopId: string = json.slop_id;
+      setSlopsBySuggestion((prev) => ({
+        ...prev,
+        [suggestionId]: { ...(prev[suggestionId] || {}), loading: true, slopId, status: json.status },
+      }));
+      await pollSlopUntilReady(suggestionId, slopId);
+    } catch (e: unknown) {
+      setSlopsBySuggestion((prev) => ({
+        ...prev,
+        [suggestionId]: { ...(prev[suggestionId] || {}), loading: false, error: (e instanceof Error ? e.message : "Failed") },
+      }));
+    }
+  }
+
+  async function pollSlopUntilReady(suggestionId: string, slopId: string) {
+    let attempts = 0;
+    const maxAttempts = 600; // ~15 mins
+    async function tick() {
+      attempts += 1;
+      try {
+        const res = await api.get(`/api/slops/${slopId}`);
+        const json = await res.json();
+        if (!res.ok) throw new Error(json?.error || "Fetch failed");
+        const status = json.status as string;
+        if (status === "ready" || status === "failed") {
+          setSlopsBySuggestion((prev) => ({
+            ...prev,
+            [suggestionId]: { ...(prev[suggestionId] || {}), loading: false, slopId, status, error: status === "failed" ? (json.error || "Generation failed") : null },
+          }));
+          return;
+        }
+      } catch (e: unknown) {
+        setSlopsBySuggestion((prev) => ({
+          ...prev,
+          [suggestionId]: { ...(prev[suggestionId] || {}), error: (e instanceof Error ? e.message : "Error fetching slop") },
+        }));
+      }
+      if (attempts < maxAttempts) {
+        setTimeout(tick, 2000);
+      } else {
+        setSlopsBySuggestion((prev) => ({
+          ...prev,
+          [suggestionId]: { ...(prev[suggestionId] || {}), loading: false, error: "Timed out" },
+        }));
+      }
+    }
+    setTimeout(tick, 2000);
+  }
+
   async function pollArticleUntilReady(suggestionId: string, articleId: string) {
     let attempts = 0;
     const maxAttempts = 600; // ~15 mins at 1.5s interval
@@ -281,7 +351,8 @@ export default function FeedPage() {
                 const isTweet = s.kind === "tweet";
                 const isReply = s.kind === "tweet_reply";
                 const isMemeConcept = s.kind === "meme_concept";
-                const icon = isHeadline ? "📰" : isReply ? "💬" : isTweet ? "🐦" : isMemeConcept ? "🖼️" : "✨";
+                const isSlopConcept = s.kind === "slop_concept";
+                const icon = isHeadline ? "📰" : isReply ? "💬" : isTweet ? "🐦" : isMemeConcept ? "🖼️" : isSlopConcept ? "🎞️" : "✨";
                 return (
                   <div key={s.id} className="rounded-lg border border-slate-500 bg-slate-900 p-4">
                     <div className="text-xs text-gray-500 flex items-center gap-2">
@@ -381,6 +452,56 @@ export default function FeedPage() {
                           return (
                             <div className="mt-2">
                               <Image src={src} alt="Generated meme" width={1024} height={1024} className="max-h-[420px] h-auto w-auto rounded-md border border-slate-700" />
+                            </div>
+                          );
+                        })()}
+                      </div>
+                    )}
+                    {isSlopConcept && (
+                      <div className="mt-3 flex flex-col gap-3">
+                        {(() => {
+                          const st = slopsBySuggestion[s.id];
+                          const loading = !!st?.loading;
+                          const existingSlopId = s.meta?.slop_id as string | undefined;
+                          const slopId = existingSlopId || st?.slopId;
+                          const isReady = st?.status === "ready" || (!!existingSlopId);
+                          return (
+                            <div className="flex items-center gap-3">
+                              {!isReady && (
+                                <button
+                                  onClick={() => startGenerateSlop(s.id)}
+                                  disabled={loading}
+                                  className="inline-flex items-center gap-2 rounded-md bg-brand-600 border border-brand-600 px-3 py-1.5 text-sm hover:bg-brand-700 cursor-pointer disabled:opacity-50"
+                                  title="Generate AI slop video"
+                                >
+                                  🎞️
+                                  <span>{loading ? "Generating…" : "Generate AI slop"}</span>
+                                </button>
+                              )}
+                              {slopId && isReady && (
+                                <a
+                                  href={`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001"}/api/slops/${slopId}/video`}
+                                  target="_blank"
+                                  className="inline-flex items-center gap-2 rounded-md border px-3 py-1.5 text-sm hover:bg-slate-800 border-slate-500"
+                                >
+                                  ⬇️ <span>Open/Download</span>
+                                </a>
+                              )}
+                              {st?.status === "failed" && (
+                                <span className="text-xs text-red-600">{st?.error || "Generation failed"}</span>
+                              )}
+                            </div>
+                          );
+                        })()}
+                        {(() => {
+                          const existingSlopId = s.meta?.slop_id as string | undefined;
+                          const slopId = existingSlopId || slopsBySuggestion[s.id]?.slopId;
+                          const isReady = slopsBySuggestion[s.id]?.status === "ready" || (!!existingSlopId);
+                          if (!slopId || !isReady) return null;
+                          const src = `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001"}/api/slops/${slopId}/video`;
+                          return (
+                            <div className="mt-2">
+                              <video controls className="max-h-[420px] h-auto w-auto rounded-md border border-slate-700" src={src} />
                             </div>
                           );
                         })()}

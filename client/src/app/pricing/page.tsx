@@ -9,6 +9,7 @@ type Plan = {
     products_per_user: number;
     content_generations_per_day: number;
     articles_per_day: number;
+    videos_per_day: number;
   };
 };
 
@@ -114,6 +115,7 @@ export default function PricingPage() {
               `${p.limits.products_per_user < 0 ? "Unlimited" : p.limits.products_per_user} product${p.limits.products_per_user === 1 ? "" : "s"}`,
               `${p.limits.content_generations_per_day < 0 ? "Unlimited" : p.limits.content_generations_per_day}  idea feeds/day`,
               `${p.limits.articles_per_day < 0 ? "Unlimited" : p.limits.articles_per_day} content generation${p.limits.articles_per_day === 1 ? "" : "s"}/day`,
+              `${p.limits.videos_per_day < 0 ? "Unlimited" : p.limits.videos_per_day} video generation${p.limits.videos_per_day === 1 ? "" : "s"}/day`,
             ];
             const isActive = !!activePlanId && p.id === activePlanId;
             return (

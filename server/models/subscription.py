@@ -46,6 +46,7 @@ class UsageQuota(db.Model):
     product_count = db.Column(db.Integer, default=0)
     content_gen_count = db.Column(db.Integer, default=0)
     article_gen_count = db.Column(db.Integer, default=0)
+    video_gen_count = db.Column(db.Integer, default=0)
 
     user = db.relationship('User', backref=db.backref('usage_quotas', lazy=True))
 

@@ -14,6 +14,8 @@ from clients.thinking_client import ThinkingClient
 import random
 from typing import List, Dict, Any, Optional
 from models.meme import Meme
+from models.slop import Slop
+from clients.gemini_client import GeminiClient, VideoResult
 
 
 def _app_context():
@@ -174,6 +176,14 @@ def generate_report(report_id: str):
                 except Exception as e:
                     logger.error(f"add_meme_concept failed: {e}")
 
+            def add_slop_concept(concept: str, source_type: str, visibility='subscriber', rank: float = 0.45, meta: Optional[dict] = None):
+                try:
+                    m = meta or {}
+                    # kind: 'slop_concept' for AI slop video ideas
+                    Suggestion.add(rep.id, source_type, 'slop_concept', concept, rank, json.dumps(m), visibility)
+                except Exception as e:
+                    logger.error(f"add_slop_concept failed: {e}")
+
             # 6. Headlines per trending topic
             for tp in topics[:10]:
                 if tp not in tweets_by_topic:
@@ -248,6 +258,32 @@ def generate_report(report_id: str):
                                 "topic": tp,
                                 "instructions": m.get('instructions'),
                                 "reason": f"Meme idea based on trending topic '{tp}'",
+                            }
+                        )
+                except Exception as e:
+                    logger.error(e)
+
+            # 7c. Slop concepts per trending topic
+            for tp in topics[:10]:
+                try:
+                    twts = tweets_by_topic.get(tp)
+                    context = None
+                    if twts:
+                        context = "\n".join([
+                            *(t.text for t in (twts.top or [])[:5]),
+                            *(t.text for t in (twts.latest or [])[:5])
+                        ])
+                    slops = thinker.slop_ideas_from_twitter(product.name, product.description or "", tp, context, n=1)
+                    for i, m in enumerate(slops):
+                        add_slop_concept(
+                            m.get('concept') or 'Slop idea',
+                            'trending_topic',
+                            'guest' if i < 1 else 'subscriber',
+                            rank=0.5 - i*0.05,
+                            meta={
+                                "topic": tp,
+                                "instructions": m.get('instructions'),
+                                "reason": f"AI slop idea based on trending topic '{tp}'",
                             }
                         )
                 except Exception as e:
@@ -350,6 +386,31 @@ def generate_report(report_id: str):
                                     "subtitle": subtitle,
                                     "instructions": m.get('instructions'),
                                     "reason": f"Meme idea inspired by Medium article '{title}'",
+                                }
+                            )
+                    except Exception as e:
+                        logger.error(e)
+
+            # 9c. Slop concepts based on Medium tags/titles
+            for tg in medium_tags[:10]:
+                arts = trending_by_tag.get(tg) or []
+                for a in arts[:2]:
+                    title = getattr(a, 'title', '')
+                    subtitle = getattr(a, 'subtitle', '')
+                    try:
+                        slops = thinker.slop_ideas_from_medium(product.name, product.description or "", title, subtitle, n=1)
+                        for m in slops:
+                            add_slop_concept(
+                                m.get('concept') or 'Slop idea',
+                                'medium_tag',
+                                'subscriber',
+                                rank=0.45,
+                                meta={
+                                    "tag": tg,
+                                    "title": title,
+                                    "subtitle": subtitle,
+                                    "instructions": m.get('instructions'),
+                                    "reason": f"AI slop idea inspired by Medium article '{title}'",
                                 }
                             )
                     except Exception as e:
@@ -538,4 +599,83 @@ def generate_meme(meme_id: str):
             mem.status = 'failed'
             mem.error_message = str(e)
             db.session.add(mem)
+            db.session.commit()
+
+
+def generate_slop(slop_id: str):
+    with _app_context():
+        sl = Slop.query.get(slop_id)
+        if not sl:
+            logger.error(f"Slop {slop_id} not found")
+            return
+        try:
+            # Build prompt
+            prompt_parts = []
+            if sl.concept:
+                prompt_parts.append(f"Concept: {sl.concept}")
+            try:
+                instr = json.loads(sl.instructions_json or '{}')
+            except Exception:
+                instr = {}
+            scene = instr.get('scene_description')
+            weird = instr.get('weirdness_level')
+            motifs = instr.get('visual_motifs') or []
+            motion = instr.get('motion_style')
+            palette = instr.get('color_palette')
+            sound = instr.get('sound_cues') or []
+            prompt_parts.append(f"Aspect ratio 9:16, duration 8 seconds.")
+            if scene:
+                prompt_parts.append(f"Scene: {scene}")
+            if isinstance(weird, int):
+                prompt_parts.append(f"Weirdness: {weird}/10")
+            if motifs:
+                prompt_parts.append("Motifs: " + ", ".join([str(m) for m in motifs]))
+            if motion:
+                prompt_parts.append(f"Motion style: {motion}")
+            if palette:
+                prompt_parts.append(f"Colors: {palette}")
+            if sound:
+                prompt_parts.append("Sound cues: " + ", ".join([str(s) for s in sound]))
+            prompt = "\n".join([p for p in prompt_parts if p]) or (sl.concept or 'Generate a surreal 8s 9:16 video')
+
+            # Call Gemini client
+            gc = GeminiClient()
+            res: VideoResult = gc.generate_video(prompt, duration_seconds=8, aspect_ratio="9:16")
+            video_abs = res.file_path
+
+            # Move to our static folder if not already there
+            import os, shutil
+            base_dir = os.path.dirname(os.path.abspath(__file__))
+            rel_dir = f"uploads/slops/{sl.report_id}"
+            out_root = os.path.join(base_dir, 'static', rel_dir)
+            os.makedirs(out_root, exist_ok=True)
+            dest_abs = os.path.join(out_root, f"{sl.id}.mp4")
+            try:
+                shutil.move(video_abs, dest_abs)
+            except Exception:
+                shutil.copy(video_abs, dest_abs)
+            video_abs = dest_abs
+            rel_path = os.path.relpath(video_abs, os.path.join(base_dir, 'static'))
+            sl.video_path = rel_path
+            sl.status = 'ready'
+            sl.model_used = getattr(res, 'model', 'gemini-veo-3')
+            db.session.add(sl)
+            db.session.commit()
+            # Persist slop_id into suggestion meta
+            if sl.suggestion_id:
+                sug = Suggestion.query.get(sl.suggestion_id)
+                if sug:
+                    try:
+                        meta = json.loads(sug.meta_json or '{}')
+                    except Exception:
+                        meta = {}
+                    meta.update({"slop_id": sl.id})
+                    sug.meta_json = json.dumps(meta)
+                    db.session.add(sug)
+                    db.session.commit()
+        except Exception as e:
+            logger.exception(e)
+            sl.status = 'failed'
+            sl.error_message = str(e)
+            db.session.add(sl)
             db.session.commit()

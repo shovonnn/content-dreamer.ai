@@ -8,6 +8,7 @@ from models.report_step import ReportStep
 from models.suggestion import Suggestion
 from models.article import Article
 from models.meme import Meme
+from models.slop import Slop
 from models.subscription import SubscriptionPlan, UserSubscription, UsageQuota
 from plans import get_plans
 from stripe_util import stripe
@@ -279,6 +280,61 @@ def create_article():
     # enqueue article generation
     q.enqueue('workers.generate_article', art.id, job_timeout='15m')
     return jsonify({'article_id': art.id, 'status': art.status}), 200
+
+
+@bp_reports.route('/api/slops', methods=['POST'])
+@jwt_required()
+def create_slop():
+    data = request.get_json(force=True, silent=True) or {}
+    suggestion_id = data.get('suggestion_id')
+    if not suggestion_id:
+        abort(400, 'suggestion_id required')
+    sug = Suggestion.query.get(suggestion_id)
+    if not sug:
+        abort(404)
+    rep = sug.report
+    current_user_id = get_jwt_identity()
+    if rep.user_id != current_user_id:
+        abort(403)
+    ok, reason = _enforce_quota(current_user_id, kind='video')
+    if not ok:
+        return jsonify({'error': reason, 'upgrade_required': True}), 402
+    meta = json.loads(sug.meta_json) if sug.meta_json else {}
+    concept = sug.text
+    instructions_json = json.dumps(meta.get('instructions') or {})
+    sl = Slop.create(report_id=rep.id, suggestion_id=sug.id, concept=concept, instructions_json=instructions_json)
+    q.enqueue('workers.generate_slop', sl.id, job_timeout='30m')
+    return jsonify({'slop_id': sl.id, 'status': sl.status}), 200
+
+
+@bp_reports.route('/api/slops/<sid>', methods=['GET'])
+@jwt_required()
+def get_slop(sid):
+    sl = Slop.query.get(sid)
+    if not sl:
+        abort(404)
+    current_user_id = get_jwt_identity()
+    if sl.report.user_id != current_user_id:
+        abort(403)
+    return jsonify({'id': sl.id, 'status': sl.status, 'concept': sl.concept, 'error': sl.error_message}), 200
+
+
+@bp_reports.route('/api/slops/<sid>/video', methods=['GET'])
+def get_slop_video(sid):
+    from flask import Response
+    sl = Slop.query.get(sid)
+    if not sl or sl.status != 'ready':
+        abort(404)
+    if not sl.video_path:
+        abort(404)
+    import os
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    file_path = os.path.join(base_dir, 'static', sl.video_path) if not sl.video_path.startswith('static/') else os.path.join(base_dir, sl.video_path)
+    if not os.path.exists(file_path):
+        abort(404)
+    with open(file_path, 'rb') as f:
+        data = f.read()
+    return Response(data, mimetype='video/mp4')
 
 
 @bp_reports.route('/api/memes', methods=['POST'])
@@ -602,6 +658,12 @@ def _enforce_quota(user_id: str, kind: str):
         if allowed >= 0 and used >= allowed:
             return False, 'Daily article generation limit reached. Upgrade your plan.'
         quota.article_gen_count = used + 1
+    elif kind == 'video':
+        allowed = limits.get('videos_per_day', 0)
+        used = (getattr(quota, 'video_gen_count', 0) or 0)
+        if allowed >= 0 and used >= allowed:
+            return False, 'Daily video generation limit reached. Upgrade your plan.'
+        quota.video_gen_count = used + 1
     else:
         return True, ''
     db.session.add(quota)
