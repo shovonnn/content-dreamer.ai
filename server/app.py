@@ -66,7 +66,7 @@ def create_app(is_testing = False):
 
     app.register_error_handler(Exception, handle_exception)
 
-    CORS(app, origins=['*', 'http://localhost:3000', 'http://localhost:3000/', 'http://localhost:3000/*', 'https://mahfuz.ngrok.io', 'https://app.conversation_coach.app'], support_credentials=True)
+    CORS(app, origins=['*', 'http://localhost:3000', 'http://localhost:3000/', 'http://localhost:3000/*', 'https://mahfuz.ngrok.io', 'https://api.contentdreamer.ai', 'https://contentdreamer.ai'], support_credentials=True)
     
     AdminAuth().init_app(app)
     admin = Admin(app, name='ContentDreamer Admin')
