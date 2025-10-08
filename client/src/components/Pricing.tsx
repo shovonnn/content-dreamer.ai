@@ -20,9 +20,9 @@ export default function Pricing(){
           <p className="mt-3">Simple plans that scale when you do.</p>
         </div>
         <div className="mt-10 grid gap-6 md:grid-cols-3">
-          <Tier name="Hobby" price="$0" features={["10 ideas/day", "Email export", "1 workspace"]} />
-          <Tier name="Pro" price="$19/mo" features={["Unlimited ideas", "Team owners", "Slack alerts"]} />
-          <Tier name="Team" price="$49/mo" features={["Everything in Pro", "SSO", "Priority support"]} />
+          <Tier name="Basic" price="$0" features={["15 ideas/day", "1 content generation/day", "No video generation"]} />
+          <Tier name="Pro" price="$10/mo" features={["50 ideas/day", "10 content generation/day", "2 video generation/day"]} />
+          <Tier name="Advanced" price="$25/mo" features={["Unlimited ideas", "Unlimited content generation", "Unlimited video generation"]} />
         </div>
       </div>
     </section>
