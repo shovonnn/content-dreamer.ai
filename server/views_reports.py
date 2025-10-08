@@ -63,6 +63,16 @@ def create_checkout_session():
     user = User.query.get(uid)
     if not user:
         abort(404)
+    sub = UserSubscription.query.filter_by(user_id=user.id).first()
+    if sub:
+        sub.update_status()
+        if sub.status in ('active', 'trialing') and sub.plan_id == plan_id:
+            abort(400, 'You are already subscribed to this plan')
+        elif sub.status in ('active', 'trialing') and sub.plan_id != plan_id:
+            # lets update the subscription instead of creating a new one
+            sub.switch_plan(plan)
+            return jsonify({'url': None, 'success': 'Subscription updated successfully'}), 200
+
     # Ensure a customer
     customer = stripe.Customer.create(email=user.email or None, metadata={'user_id': user.id})
     # Derive return URLs

@@ -70,7 +70,12 @@ export default function PricingPage() {
     try {
       const res = await api.post("/api/billing/checkout", { plan_id: planId });
       const json = await res.json();
-      if (!res.ok || !json.url) throw new Error(json?.error || "Unable to start checkout");
+      if (!res.ok) throw new Error(json?.error || "Unable to start checkout");
+      if (!json.url && json.success) {
+        // No URL means upgrade/downgrade to this plan
+        setActivePlanId(planId);
+        return;
+      }
       window.location.href = json.url;
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Checkout failed";
