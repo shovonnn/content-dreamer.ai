@@ -84,6 +84,7 @@ def create_checkout_session():
         line_items=[{'price': plan['stripe_price_id'], 'quantity': 1}],
         success_url=origin + '/dashboard?upgrade=success',
         cancel_url=origin + '/pricing?canceled=1',
+        allow_promotion_codes=True,
     )
     # Persist or update pending subscription record
     sub = UserSubscription.query.filter_by(user_id=user.id).first()
