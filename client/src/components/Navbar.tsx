@@ -3,6 +3,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { api } from "@/lib/apiClient";
 import { ProfileMenu } from "@/components/ProfileMenu";
+import Image from "next/image";
 
 export function Navbar() {
   const [authed, setAuthed] = useState(false);
@@ -18,7 +19,7 @@ export function Navbar() {
     <header className="sticky top-0 z-50 bg-white/70 backdrop-blur dark:bg-slate-950/70 border-b border-slate-200/60 dark:border-slate-800/60">
       <div className="container h-14 flex items-center justify-between">
         <Link href="/" className="flex items-center gap-2 font-semibold">
-          <span className="inline-flex h-8 w-8 items-center justify-center rounded-xl bg-brand-600 text-white">CD</span>
+          <Image src={'/icon.png'} width={32} height={32} className="inline-flex h-8 w-8 items-center justify-center rounded-xl bg-brand-600 text-white" alt="Content Dreamer ai" />
           <span>Content Dreamer</span>
         </Link>
         <nav className="hidden md:flex items-center gap-6 text-sm">
