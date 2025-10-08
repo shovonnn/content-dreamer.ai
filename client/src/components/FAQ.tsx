@@ -1,7 +1,36 @@
 const faqs = [
-  { q: "Do you store my account credentials?", a: "No. We connect to providers only when needed and store content ideas and metadata." },
-  { q: "Can I import from CSV?", a: "Yes. Upload a CSV or paste links to seed your first board." },
-  { q: "Do you support teams?", a: "Invite teammates, set owners, and track status together." },
+  {
+    q: "What can I generate with Content Dreamer?",
+    a: "Tweets and threads, blog post ideas, memes, and short 'AI slop' videos (funny or branded reels) tailored to your niche.",
+  },
+  {
+    q: "Where do ideas come from?",
+    a: "We track live trends, news, and search signals plus your keywords to surface timely concepts and angles.",
+  },
+  {
+    q: "How fresh are the trends?",
+    a: "Boards update throughout the day as new stories break; regenerate any card to get the latest context.",
+  },
+  {
+    q: "Do you store my social account credentials?",
+    a: "No. We only store your generated ideas and board metadata. Any connected accounts use tokens you can revoke at any time.",
+  },
+  {
+    q: "Can I import topics or links to seed a board?",
+    a: "Yes. Paste links or upload a CSV to jump-start ideation with your sources.",
+  },
+  {
+    q: "Can I set my brand voice?",
+    a: "Yes. Choose tone, audience, and style guidelines; we remember them per workspace to keep outputs on-brand.",
+  },
+  {
+    q: "What is an AI slop video?",
+    a: "A fast-cut, meme-style reel with punchy captions and b‑roll. Provide a topic and we generate a short, funny or branded clip.",
+  },
+  {
+    q: "Do you support teams?",
+    a: "Invite teammates, assign owners, and track status across boards together.",
+  },
 ];
 
 export default function FAQ(){
