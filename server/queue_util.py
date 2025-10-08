@@ -5,7 +5,7 @@ from config import logger
 from functools import wraps
 from rq.job import JobStatus
 
-q = Queue(name='conversation_coach', connection=cache_store)
+q = Queue(name='content_dreamer', connection=cache_store)
 
 def _handle_message(user_id):
     from app import create_app

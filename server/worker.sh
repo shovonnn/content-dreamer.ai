@@ -1,1 +1,1 @@
-DISABLE_GEVENT_PATCH=1 rq worker conversation_coach --with-scheduler
+DISABLE_GEVENT_PATCH=1 rq worker content_dreamer --with-scheduler
