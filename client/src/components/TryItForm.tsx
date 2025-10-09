@@ -68,7 +68,7 @@ export default function TryItForm() {
       <textarea className="mt-1 w-full rounded-md border px-3 py-2 h-28 dark:border-slate-800" placeholder="What does it do? Who is it for?" value={desc} onChange={e=>setDesc(e.target.value)} />
       {error && <p className="text-sm text-red-600 mt-3">{error}</p>}
       <button disabled={loading} className="mt-5 inline-flex items-center justify-center rounded-xl bg-brand-600 px-5 py-3 font-medium text-white hover:bg-brand-700 disabled:opacity-50">
-        {loading ? "Generating…" : "Get content suggestion"}
+        {loading ? "Booting Up…" : "Dream Up Ideas"}
       </button>
     </form>
   );
