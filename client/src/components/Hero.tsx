@@ -14,8 +14,8 @@ export default function Hero() {
             Consistent content strategy is the secret sauce for indie success.
           </h1>
           <p className="text-lg">
-            But as a technical person, do you have enough free mental bandwidth to
-            keep up with the latest trends, topics, and come up with new ideas? Content Dreamer helps you
+            But as a solo founder, do you have enough free mental space to
+            keep up with the latest trends and come up with new ideas? Content Dreamer helps you
             generate fresh, relevant content ideas daily, so you can focus on building in public and engaging with your audience.
           </p>
           <div className="flex flex-col sm:flex-row gap-3">
