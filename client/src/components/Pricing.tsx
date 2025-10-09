@@ -1,4 +1,15 @@
+import Link from "next/link";
+import { useEffect, useState } from "react";
+import { api } from "@/lib/apiClient";
+
 function Tier({name, price, features}:{name:string; price:string; features:string[]}){
+  const [authed, setAuthed] = useState(false);
+  useEffect(() => {
+    const update = () => setAuthed(api.isAuthenticated());
+    update();
+    api.onAuthChange(update);
+    return () => api.offAuthChange(update);
+  }, []);
   return (
     <div className="flex flex-col rounded-2xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm">
       <h3 className="text-xl font-semibold">{name}</h3>
@@ -6,7 +17,8 @@ function Tier({name, price, features}:{name:string; price:string; features:strin
       <ul className="mt-4 space-y-2">
         {features.map(f=> <li key={f}>✓ {f}</li>)}
       </ul>
-      <a href="#cta" className="mt-6 inline-flex items-center justify-center rounded-xl bg-brand-600 px-4 py-2 font-medium text-white hover:bg-brand-700">Start free</a>
+      {!authed && <Link href="/register" className="mt-6 inline-flex items-center justify-center rounded-xl bg-brand-600 px-4 py-2 font-medium text-white hover:bg-brand-700">Start free</Link>}
+      {authed && <Link href="/dashboard" className="mt-6 inline-flex items-center justify-center rounded-xl bg-brand-600 px-4 py-2 font-medium text-white hover:bg-brand-700">Go to dashboard</Link>}
     </div>
   );
 }

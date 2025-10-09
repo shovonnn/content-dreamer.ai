@@ -11,10 +11,12 @@ export default function Hero() {
             <span>50% Off</span>
           </div>
           <h1 className="text-4xl font-bold tracking-tight sm:text-5xl">
-            Dream up premium content ideas for your product.
+            Consistent content strategy is the secret sauce for indie success.
           </h1>
           <p className="text-lg">
-            Turn your website and social media into scroll‑stopping articles and posts — powered by live trends, keywords, and AI.
+            But as a technical person, do you have enough free mental bandwidth to
+            keep up with the latest trends, topics, and come up with new ideas? Content Dreamer helps you
+            generate fresh, relevant content ideas daily, so you can focus on building in public and engaging with your audience.
           </p>
           <div className="flex flex-col sm:flex-row gap-3">
             <button onClick={() => (document.querySelector("#try-it-form input") as HTMLInputElement)?.focus()} className="inline-flex items-center justify-center rounded-xl bg-brand-600 hover:bg-brand-900 active:scale-[0.98] px-5 py-2 text-sm font-medium">Try the demo</button>
@@ -22,8 +24,6 @@ export default function Hero() {
           </div>
           <div className="flex items-center gap-4 text-xs text-slate-500">
             <span>⚡ No credit card</span>
-            <span>•</span>
-            <span>🔒 Your data stays yours</span>
             <span>•</span>
             <span>🚀 2‑min setup</span>
           </div>

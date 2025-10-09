@@ -24,9 +24,10 @@ export function Navbar() {
         </Link>
         <nav className="hidden md:flex items-center gap-6 text-sm">
           <Link href="/#features" className="hover:text-brand-600">Features</Link>
-          <Link href="/#pricing" className="hover:text-brand-600">Pricing</Link>
+          {authed && <Link href="/pricing" className="hover:text-brand-600">Pricing</Link>}
+          {!authed && <Link href="/#pricing" className="hover:text-brand-600">Pricing</Link>}
           <Link href="/#faq" className="hover:text-brand-600">FAQ</Link>
-          <Link href="/dashboard" className="hover:text-brand-600">Dashboard</Link>
+          {authed && <Link href="/dashboard" className="hover:text-brand-600">Dashboard</Link>}
         </nav>
         <div className="flex items-center gap-3">
           {authed ? (

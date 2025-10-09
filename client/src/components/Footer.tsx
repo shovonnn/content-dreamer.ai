@@ -9,7 +9,7 @@ export default function Footer(){
         <nav className="flex gap-4 text-sm text-slate-500">
           <a href="/privacy">Privacy</a>
           <a href="/terms">Terms</a>
-          <a href="mailto:hello@example.com">Contact</a>
+          <a href="https://x.com/content_dreamer">Contact</a>
         </nav>
       </div>
     </footer>
