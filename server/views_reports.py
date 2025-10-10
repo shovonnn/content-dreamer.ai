@@ -327,7 +327,9 @@ def get_slop(sid):
     if not sl:
         abort(404)
     current_user_id = get_jwt_identity()
-    if sl.report.user_id != current_user_id:
+    rep = sl.report
+    guest_id = _request_guest_id()
+    if (not rep.user_id and not rep.guest_id) or (rep.user_id and rep.user_id != current_user_id) or  (not rep.user_id and rep.guest_id and rep.guest_id != guest_id):
         abort(403)
     return jsonify({'id': sl.id, 'status': sl.status, 'concept': sl.concept, 'error': sl.error_message}), 200
 
