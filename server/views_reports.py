@@ -305,7 +305,8 @@ def create_slop():
         abort(404)
     rep = sug.report
     current_user_id = get_jwt_identity()
-    if rep.user_id != current_user_id:
+    guest_id = _request_guest_id()
+    if (not rep.user_id and not rep.guest_id) or (rep.user_id and rep.user_id != current_user_id) or  (not rep.user_id and rep.guest_id and rep.guest_id != guest_id):
         abort(403)
     ok, reason = _enforce_quota(current_user_id, kind='video')
     if not ok:
