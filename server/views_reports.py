@@ -644,7 +644,8 @@ def _get_user_plan_and_limits(user_id: str):
     sub = UserSubscription.query.filter_by(user_id=user_id).order_by(UserSubscription.current_period_end.desc()).first()
     plan_id = default_plan['id']
     limits = default_plan['limits']
-    sub.update_status()
+    if sub:
+        sub.update_status()
     if sub and sub.status in ('active', 'trialing', 'past_due') and sub.plan_id:
         p = next((pp for pp in plans if pp['id'] == sub.plan_id), None)
         if p:
