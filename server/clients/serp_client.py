@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from typing import List, Optional
 from xml.parsers.expat import model
 import requests
+import random
 
 @dataclass
 class TechNewsArticle:
@@ -57,11 +58,12 @@ class SerpApiClient:
                 date=highlight.get("date"),
                 summary=None,
             )
-            if item.title and item.link:
-                item.summary = self.fetch_news_summary(item.title, item.link)
             out.append(item)
-            if len(out) >= limit:
-                break
+        random.shuffle(out)
+        out = out[:limit]
+        for item in out:
+            if not item.summary:
+                item.summary = self.fetch_news_summary(item.title, item.link)
         return out
     
     def fetch_news_summary(self, title: str, url: str) -> Optional[str]:

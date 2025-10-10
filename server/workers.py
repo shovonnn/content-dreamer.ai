@@ -256,29 +256,47 @@ def generate_report(report_id: str):
                 except Exception as e:
                     logger.error(e)
 
-            # 6. Headlines per trending topic
-            for tp in topics[:10]:
-                if tp not in tweets_by_topic:
-                    continue
-                tweets_ctx = tweets_by_topic.get(tp)
-                tweets_text = "\n".join([
-                    *(t.text for t in (tweets_ctx.top or [])[:5]),
-                    *(t.text for t in (tweets_ctx.latest or [])[:5])
-                ])
+            # # 6. Headlines per trending topic
+            # for tp in topics[:10]:
+            #     if tp not in tweets_by_topic:
+            #         continue
+            #     tweets_ctx = tweets_by_topic.get(tp)
+            #     tweets_text = "\n".join([
+            #         *(t.text for t in (tweets_ctx.top or [])[:5]),
+            #         *(t.text for t in (tweets_ctx.latest or [])[:5])
+            #     ])
+            #     try:
+            #         articles = thinker.articles_for_topic(product.name, product.description or "", tp, tweets_text, n=2)
+            #         for i, h in enumerate(articles):
+            #             add_headline(
+            #                 h.get('title'),
+            #                 'trending_topic',
+            #                 'guest' if i < (rep.visibility_cutoff or 5) else 'subscriber',
+            #                 rank=1.0 - i*0.1,
+            #                 meta={
+            #                     "title": h.get('title'),
+            #                     "description": h.get('description'),
+            #                     "topic": tp,
+            #                     "reason": f"From trending topic '{tp}' likely relevant to your audience",
+            #                 },
+            #             )
+            #     except Exception as e:
+            #         logger.error(e)
+
+            # Headlines per expanded group1 keywords
+            for kw in expanded_group2[:15]:
                 try:
-                    articles = thinker.articles_for_topic(product.name, product.description or "", tp, tweets_text, n=2)
-                    for i, h in enumerate(articles):
+                    articles = thinker.articles_for_topic(product.name, product.description or "", kw, None, n=2)
+                    for h in articles:
                         add_headline(
                             h.get('title'),
-                            'trending_topic',
-                            'guest' if i < (rep.visibility_cutoff or 5) else 'subscriber',
-                            rank=1.0 - i*0.1,
-                            meta={
+                            'kw_g2',
+                            'subscriber',
+                            0.7,
+                            {
                                 "title": h.get('title'),
                                 "description": h.get('description'),
-                                "topic": tp,
-                                "reason": f"From trending topic '{tp}' likely relevant to your audience",
-                            },
+                                 "keyword": kw, "with_tweets": False, "reason": f"From keyword '{kw}'"}
                         )
                 except Exception as e:
                     logger.error(e)
@@ -361,7 +379,8 @@ def generate_report(report_id: str):
                 except Exception as e:
                     logger.error(e)
 
-            # 8. Headlines per keyword in expanded group2, with tweets and without
+            # 8. Headlines per keyword in expanded group2, with tweets
+
             for kw in expanded_group2[:15]:
                 kw_tweets = tweets_by_kw_g2.get(kw)
                 tweets_text = "\n".join([
@@ -382,18 +401,6 @@ def generate_report(report_id: str):
                                 "keyword": kw, "with_tweets": True, "reason": f"From keyword '{kw}'"}
                         )
                     
-                    articles = thinker.articles_for_topic(product.name, product.description or "", kw, None, n=2)
-                    for h in articles:
-                        add_headline(
-                            h.get('title'),
-                            'kw_g2',
-                            'subscriber',
-                            0.7,
-                            {
-                                "title": h.get('title'),
-                                "description": h.get('description'),
-                                 "keyword": kw, "with_tweets": False, "reason": f"From keyword '{kw}'"}
-                        )
                 except Exception as e:
                     logger.error(e)
 
