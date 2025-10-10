@@ -272,7 +272,8 @@ def create_article():
         abort(404)
     rep = sug.report
     current_user_id = get_jwt_identity()
-    if rep.user_id != current_user_id:
+    guest_id = _request_guest_id()
+    if (not rep.user_id and not rep.guest_id) or (rep.user_id and rep.user_id != current_user_id) or  (not rep.user_id and rep.guest_id and rep.guest_id != guest_id):
         abort(403)
     ok, reason = _enforce_quota(current_user_id, kind='article')
     if not ok:
@@ -361,7 +362,8 @@ def create_meme():
         abort(404)
     rep = sug.report
     current_user_id = get_jwt_identity()
-    if rep.user_id != current_user_id:
+    guest_id = _request_guest_id()
+    if (not rep.user_id and not rep.guest_id) or (rep.user_id and rep.user_id != current_user_id) or  (not rep.user_id and rep.guest_id and rep.guest_id != guest_id):
         abort(403)
     # reuse article quota for meme generation to keep it simple
     ok, reason = _enforce_quota(current_user_id, kind='article')
@@ -383,7 +385,9 @@ def get_meme(mid):
     if not mem:
         abort(404)
     current_user_id = get_jwt_identity()
-    if mem.report.user_id != current_user_id:
+    rep = mem.report
+    guest_id = _request_guest_id()
+    if (not rep.user_id and not rep.guest_id) or (rep.user_id and rep.user_id != current_user_id) or  (not rep.user_id and rep.guest_id and rep.guest_id != guest_id):
         abort(403)
     return jsonify({
         'id': mem.id,
@@ -433,7 +437,9 @@ def get_article(aid):
     if not art:
         abort(404)
     current_user_id = get_jwt_identity()
-    if art.report.user_id != current_user_id:
+    rep = art.report
+    guest_id = _request_guest_id()
+    if (not rep.user_id and not rep.guest_id) or (rep.user_id and rep.user_id != current_user_id) or  (not rep.user_id and rep.guest_id and rep.guest_id != guest_id):
         abort(403)
     return jsonify({
         'id': art.id,
@@ -452,7 +458,9 @@ def update_article(aid):
     if not art:
         abort(404)
     current_user_id = get_jwt_identity()
-    if art.report.user_id != current_user_id:
+    rep = art.report
+    guest_id = _request_guest_id()
+    if (not rep.user_id and not rep.guest_id) or (rep.user_id and rep.user_id != current_user_id) or  (not rep.user_id and rep.guest_id and rep.guest_id != guest_id):
         abort(403)
     data = request.get_json(force=True, silent=True) or {}
     title = (data.get('title') or '').strip()
