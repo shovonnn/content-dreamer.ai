@@ -9,7 +9,7 @@ from config import logger, serpapi_key, rapidapi_key, enable_twitter, enable_med
 import json
 from clients.twitter_client import TwitterClient, TweetSummary
 from clients.medium_client import MediumClient
-from clients.serp_client import SerpApiClient
+from clients.serp_client import SerpApiClient, TechNewsArticle
 from clients.thinking_client import ThinkingClient
 import random
 from typing import List, Dict, Any, Optional
@@ -148,6 +148,19 @@ def generate_report(report_id: str):
                     pass
                 s5.fail(str(e))
 
+            s6 = ReportStep.start(rep.id, 'tech_news_articles')
+            tech_news: List[TechNewsArticle] = []
+            try:
+                serp = SerpApiClient()
+                tech_news = serp.get_top_tech_news(limit=2)
+                s6.done(json.dumps({"articles": [article.title for article in tech_news]}))
+            except Exception as e:
+                try:
+                    db.session.rollback()
+                except Exception:
+                    pass
+                s6.fail(str(e))
+
             # Steps 6-10: LLM-generated suggestions
             # Helper to add suggestion safely
             def add_headline(text, source_type, visibility='subscriber', rank=0.0, meta=None):
@@ -183,6 +196,65 @@ def generate_report(report_id: str):
                     Suggestion.add(rep.id, source_type, 'slop_concept', concept, rank, json.dumps(m), visibility)
                 except Exception as e:
                     logger.error(f"add_slop_concept failed: {e}")
+
+            # tweet ideas from tech news articles
+            for tn in tech_news:
+                try:
+                    tweets = thinker.tweets_for_topic(product.name, product.description or "", tn.title or "", tn.summary or "", n=2)
+                    for i, t in enumerate(tweets):
+                        add_tweet(
+                            t,
+                            'tech_news',
+                            'subscriber' if i >= 1 else 'guest',
+                            rank=0.6 - i*0.1,
+                            meta={
+                                "title": tn.title,
+                                "link": tn.link,
+                                "reason": f"Tweet idea based on tech news '{tn.title}'",
+                            },
+                        )
+                except Exception as e:
+                    logger.error(e)
+
+            # meme concepts from tech news articles
+            for tn in tech_news:
+                try:
+                    memes = thinker.meme_ideas_from_medium(product.name, product.description or "", tn.title or "", tn.summary or "", n=1)
+                    for m in memes:
+                        add_meme_concept(
+                            m.get('concept') or 'Meme idea',
+                            'tech_news',
+                            'subscriber',
+                            rank=0.5,
+                            meta={
+                                "title": tn.title,
+                                "link": tn.link,
+                                "instructions": m.get('instructions'),
+                                "reason": f"Meme idea inspired by tech news '{tn.title}'",
+                            }
+                        )
+                except Exception as e:
+                    logger.error(e)
+
+            # slop concepts from tech news articles
+            for tn in tech_news:
+                try:
+                    slops = thinker.slop_ideas_from_medium(product.name, product.description or "", tn.title or "", tn.summary or "", n=1)
+                    for m in slops:
+                        add_slop_concept(
+                            m.get('concept') or 'Slop idea',
+                            'tech_news',
+                            'subscriber',
+                            rank=0.45,
+                            meta={
+                                "title": tn.title,
+                                "link": tn.link,
+                                "instructions": m.get('instructions'),
+                                "reason": f"AI slop idea inspired by tech news '{tn.title}'",
+                            }
+                        )
+                except Exception as e:
+                    logger.error(e)
 
             # 6. Headlines per trending topic
             for tp in topics[:10]:
@@ -367,54 +439,54 @@ def generate_report(report_id: str):
                     logger.error(e)
 
             # 9b. Meme concepts based on Medium tags/titles
-            for tg in medium_tags[:10]:
-                arts = trending_by_tag.get(tg) or []
-                for a in arts[:3]:
-                    title = getattr(a, 'title', '')
-                    subtitle = getattr(a, 'subtitle', '')
-                    try:
-                        memes = thinker.meme_ideas_from_medium(product.name, product.description or "", title, subtitle, n=1)
-                        for m in memes:
-                            add_meme_concept(
-                                m.get('concept') or 'Meme idea',
-                                'medium_tag',
-                                'subscriber',
-                                rank=0.5,
-                                meta={
-                                    "tag": tg,
-                                    "title": title,
-                                    "subtitle": subtitle,
-                                    "instructions": m.get('instructions'),
-                                    "reason": f"Meme idea inspired by Medium article '{title}'",
-                                }
-                            )
-                    except Exception as e:
-                        logger.error(e)
+            # for tg in medium_tags[:10]:
+            #     arts = trending_by_tag.get(tg) or []
+            #     for a in arts[:3]:
+            #         title = getattr(a, 'title', '')
+            #         subtitle = getattr(a, 'subtitle', '')
+            #         try:
+            #             memes = thinker.meme_ideas_from_medium(product.name, product.description or "", title, subtitle, n=1)
+            #             for m in memes:
+            #                 add_meme_concept(
+            #                     m.get('concept') or 'Meme idea',
+            #                     'medium_tag',
+            #                     'subscriber',
+            #                     rank=0.5,
+            #                     meta={
+            #                         "tag": tg,
+            #                         "title": title,
+            #                         "subtitle": subtitle,
+            #                         "instructions": m.get('instructions'),
+            #                         "reason": f"Meme idea inspired by Medium article '{title}'",
+            #                     }
+            #                 )
+            #         except Exception as e:
+            #             logger.error(e)
 
             # 9c. Slop concepts based on Medium tags/titles
-            for tg in medium_tags[:10]:
-                arts = trending_by_tag.get(tg) or []
-                for a in arts[:2]:
-                    title = getattr(a, 'title', '')
-                    subtitle = getattr(a, 'subtitle', '')
-                    try:
-                        slops = thinker.slop_ideas_from_medium(product.name, product.description or "", title, subtitle, n=1)
-                        for m in slops:
-                            add_slop_concept(
-                                m.get('concept') or 'Slop idea',
-                                'medium_tag',
-                                'subscriber',
-                                rank=0.45,
-                                meta={
-                                    "tag": tg,
-                                    "title": title,
-                                    "subtitle": subtitle,
-                                    "instructions": m.get('instructions'),
-                                    "reason": f"AI slop idea inspired by Medium article '{title}'",
-                                }
-                            )
-                    except Exception as e:
-                        logger.error(e)
+            # for tg in medium_tags[:10]:
+            #     arts = trending_by_tag.get(tg) or []
+            #     for a in arts[:2]:
+            #         title = getattr(a, 'title', '')
+            #         subtitle = getattr(a, 'subtitle', '')
+            #         try:
+            #             slops = thinker.slop_ideas_from_medium(product.name, product.description or "", title, subtitle, n=1)
+            #             for m in slops:
+            #                 add_slop_concept(
+            #                     m.get('concept') or 'Slop idea',
+            #                     'medium_tag',
+            #                     'subscriber',
+            #                     rank=0.45,
+            #                     meta={
+            #                         "tag": tg,
+            #                         "title": title,
+            #                         "subtitle": subtitle,
+            #                         "instructions": m.get('instructions'),
+            #                         "reason": f"AI slop idea inspired by Medium article '{title}'",
+            #                     }
+            #                 )
+            #         except Exception as e:
+            #             logger.error(e)
 
             # 10. Witty replies for every fetched tweet (rank and keep top 5 per source)
             def top_replies_for(items, source_key, source_label=None):
