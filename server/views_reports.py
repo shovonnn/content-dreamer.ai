@@ -545,12 +545,14 @@ def list_products():
         changed = False
         for p in guest_products:
             p.user_id = uid
+            p.guest_id = None
             db.session.add(p)
             changed = True
         # Move reports
         guest_reports = Report.query.filter_by(guest_id=guest_id).all()
         for r in guest_reports:
             r.user_id = uid
+            r.guest_id = None
             db.session.add(r)
             changed = True
         if changed:
