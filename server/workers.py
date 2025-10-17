@@ -46,9 +46,9 @@ def generate_report(report_id: str):
             s2 = ReportStep.start(rep.id, 'serpapi_expand')
             try:
                 if serpapi_key:
-                    sa = SerpApiClient(api_key=serpapi_key)
-                    expanded_group2 = sa.expand_keywords(expanded_group2, limit=100, per_kw_limit=10)
-                    expanded_group2 = thinker.filter_keywords(product.name, product.description or "", expanded_group2, limit=5)
+                    # sa = SerpApiClient(api_key=serpapi_key)
+                    # expanded_group2 = sa.expand_keywords(expanded_group2, limit=100, per_kw_limit=10)
+                    # expanded_group2 = thinker.filter_keywords(product.name, product.description or "", expanded_group2, limit=5)
                     # take random 2
                     if len(expanded_group2) >= 2:
                         expanded_group2 = random.sample(expanded_group2, 2)
@@ -126,27 +126,27 @@ def generate_report(report_id: str):
             # Step 5: Medium tags and trending articles via RapidAPI
             medium_tags = []
             trending_by_tag = {}
-            s5 = ReportStep.start(rep.id, 'medium_tags_and_articles')
-            try:
-                if enable_medium and rapidapi_key:
-                    md = MediumClient(api_key=rapidapi_key)
-                    # Select relevant tags via LLM using thinking client
-                    medium_tags = md.get_all_available_tags(limit=200)
-                    medium_tags = thinker.filter_keywords(product.name, product.description or "", medium_tags, limit=20)
-                    if len(medium_tags) >= 2:
-                        medium_tags = random.sample(medium_tags, 2)
-                    # Fetch trending articles per tag
-                    for tg in medium_tags:
-                        trending_by_tag[tg] = md.get_trending_articles(tg, limit=2)
-                    s5.done(json.dumps({"tags": medium_tags, "counts": {k: len(v) for k, v in trending_by_tag.items()}}))
-                else:
-                    s5.done(json.dumps({"warning": "Medium disabled or RAPIDAPI_KEY missing"}))
-            except Exception as e:
-                try:
-                    db.session.rollback()
-                except Exception:
-                    pass
-                s5.fail(str(e))
+            # s5 = ReportStep.start(rep.id, 'medium_tags_and_articles')
+            # try:
+            #     if enable_medium and rapidapi_key:
+            #         md = MediumClient(api_key=rapidapi_key)
+            #         # Select relevant tags via LLM using thinking client
+            #         medium_tags = md.get_all_available_tags(limit=200)
+            #         medium_tags = thinker.filter_keywords(product.name, product.description or "", medium_tags, limit=20)
+            #         if len(medium_tags) >= 2:
+            #             medium_tags = random.sample(medium_tags, 2)
+            #         # Fetch trending articles per tag
+            #         for tg in medium_tags:
+            #             trending_by_tag[tg] = md.get_trending_articles(tg, limit=2)
+            #         s5.done(json.dumps({"tags": medium_tags, "counts": {k: len(v) for k, v in trending_by_tag.items()}}))
+            #     else:
+            #         s5.done(json.dumps({"warning": "Medium disabled or RAPIDAPI_KEY missing"}))
+            # except Exception as e:
+            #     try:
+            #         db.session.rollback()
+            #     except Exception:
+            #         pass
+            #     s5.fail(str(e))
 
             s6 = ReportStep.start(rep.id, 'tech_news_articles')
             tech_news: List[TechNewsArticle] = []
@@ -219,7 +219,7 @@ def generate_report(report_id: str):
             # meme concepts from tech news articles
             for tn in tech_news:
                 try:
-                    memes = thinker.meme_ideas_from_medium(product.name, product.description or "", tn.title or "", tn.summary or "", n=1)
+                    memes = thinker.meme_ideas_from_medium(product.name, product.description or "", tn.title or "", tn.summary or "", n=3)
                     for m in memes:
                         add_meme_concept(
                             m.get('concept') or 'Meme idea',
@@ -239,7 +239,7 @@ def generate_report(report_id: str):
             # slop concepts from tech news articles
             for tn in tech_news:
                 try:
-                    slops = thinker.slop_ideas_from_medium(product.name, product.description or "", tn.title or "", tn.summary or "", n=1)
+                    slops = thinker.slop_ideas_from_medium(product.name, product.description or "", tn.title or "", tn.summary or "", n=3)
                     for m in slops:
                         add_slop_concept(
                             m.get('concept') or 'Slop idea',
@@ -337,7 +337,7 @@ def generate_report(report_id: str):
                             *(t.text for t in (twts.top or [])[:5]),
                             *(t.text for t in (twts.latest or [])[:5])
                         ])
-                    memes = thinker.meme_ideas_from_twitter(product.name, product.description or "", tp, context, n=2)
+                    memes = thinker.meme_ideas_from_twitter(product.name, product.description or "", tp, context, n=4)
                     for i, m in enumerate(memes):
                         add_meme_concept(
                             m.get('concept') or 'Meme idea',
@@ -363,7 +363,7 @@ def generate_report(report_id: str):
                             *(t.text for t in (twts.top or [])[:5]),
                             *(t.text for t in (twts.latest or [])[:5])
                         ])
-                    slops = thinker.slop_ideas_from_twitter(product.name, product.description or "", tp, context, n=1)
+                    slops = thinker.slop_ideas_from_twitter(product.name, product.description or "", tp, context, n=3)
                     for i, m in enumerate(slops):
                         add_slop_concept(
                             m.get('concept') or 'Slop idea',
@@ -405,45 +405,45 @@ def generate_report(report_id: str):
                     logger.error(e)
 
             # 9. Headlines per Medium tag using trending articles
-            for tg in medium_tags[:10]:
-                arts = trending_by_tag.get(tg) or []
-                titles = "\n".join([getattr(a, 'title')+'\n'+getattr(a, 'subtitle') or '' for a in arts[:10]])
-                try:
-                    heads = thinker.articles_for_topic(product.name, product.description or "", tg, titles, n=2)
-                    for h in heads:
-                        add_headline(
-                            h.get('title'),
-                            'medium_tag',
-                            'subscriber',
-                            0.75,
-                            {
-                                "title": h.get('title'),
-                                "description": h.get('description'),
-                                "tag": tg, "reason": f"Inspired by trending articles under Medium tag '{tg}'"
-                            }
-                        )
-                except Exception as e:
-                    logger.error(e)
+            # for tg in medium_tags[:10]:
+            #     arts = trending_by_tag.get(tg) or []
+            #     titles = "\n".join([getattr(a, 'title')+'\n'+getattr(a, 'subtitle') or '' for a in arts[:10]])
+            #     try:
+            #         heads = thinker.articles_for_topic(product.name, product.description or "", tg, titles, n=2)
+            #         for h in heads:
+            #             add_headline(
+            #                 h.get('title'),
+            #                 'medium_tag',
+            #                 'subscriber',
+            #                 0.75,
+            #                 {
+            #                     "title": h.get('title'),
+            #                     "description": h.get('description'),
+            #                     "tag": tg, "reason": f"Inspired by trending articles under Medium tag '{tg}'"
+            #                 }
+            #             )
+            #     except Exception as e:
+            #         logger.error(e)
 
             # generate tweets from trending articles too
-            for tg in medium_tags[:10]:
-                arts = trending_by_tag.get(tg) or []
-                titles = "\n".join([getattr(a, 'title')+'\n'+getattr(a, 'subtitle') or '' for a in arts[:10]])
-                try:
-                    tweets = thinker.tweets_for_topic(product.name, product.description or "", tg, titles, n=2)
-                    for i, t in enumerate(tweets):
-                        add_tweet(
-                            t,
-                            'medium_tag',
-                            'subscriber' if i >= 1 else 'guest',
-                            rank=0.6 - i*0.1,
-                            meta={
-                                "tag": tg,
-                                "reason": f"Tweet idea based on trending articles under Medium tag '{tg}'",
-                            },
-                        )
-                except Exception as e:
-                    logger.error(e)
+            # for tg in medium_tags[:10]:
+            #     arts = trending_by_tag.get(tg) or []
+            #     titles = "\n".join([getattr(a, 'title')+'\n'+getattr(a, 'subtitle') or '' for a in arts[:10]])
+            #     try:
+            #         tweets = thinker.tweets_for_topic(product.name, product.description or "", tg, titles, n=2)
+            #         for i, t in enumerate(tweets):
+            #             add_tweet(
+            #                 t,
+            #                 'medium_tag',
+            #                 'subscriber' if i >= 1 else 'guest',
+            #                 rank=0.6 - i*0.1,
+            #                 meta={
+            #                     "tag": tg,
+            #                     "reason": f"Tweet idea based on trending articles under Medium tag '{tg}'",
+            #                 },
+            #             )
+            #     except Exception as e:
+            #         logger.error(e)
 
             # 9b. Meme concepts based on Medium tags/titles
             # for tg in medium_tags[:10]:
@@ -546,18 +546,21 @@ def generate_report(report_id: str):
                 ctx = tweets_by_topic.get(tp)
                 #pick random 2 tweets from top+latest
                 if ctx:
-                    random_tweets = random.sample(((ctx.top or []) + (ctx.latest or [])), 2)
+                    tws = (ctx.top or []) + (ctx.latest or [])
+                    random_tweets = random.sample(tws, 2) if len(tws) > 2 else tws
                     top_replies_for(random_tweets, 'trending_topic', tp)
             # from kw groups
             for kw in (prospect_keywords or [])[:10]:
                 ctx = tweets_by_kw_g1.get(kw)
                 if ctx:
-                    random_tweets = random.sample(((ctx.top or []) + (ctx.latest or [])), 2)
+                    tws = (ctx.top or []) + (ctx.latest or [])
+                    random_tweets = random.sample(tws, 5) if len(tws) > 5 else tws
                     top_replies_for(random_tweets, 'kw_g1', kw)
             for kw in expanded_group2[:10]:
                 ctx = tweets_by_kw_g2.get(kw)
                 if ctx:
-                    random_tweets = random.sample(((ctx.top or []) + (ctx.latest or [])), 2)
+                    tws = (ctx.top or []) + (ctx.latest or [])
+                    random_tweets = random.sample(tws, 4) if len(tws) > 4 else tws
                     top_replies_for(random_tweets, 'kw_g2', kw)
 
             rep.mark_partial()  # as soon as some suggestions exist
