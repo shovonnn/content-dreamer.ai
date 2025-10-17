@@ -11,6 +11,7 @@ import re
 class User(db.Model, SerializerMixin):
   id = db.Column(db.String(100), primary_key=True)
   auth0_id = db.Column(db.String(200), index=True)
+  guest_id = db.Column(db.String(100), index=True, nullable=True)
   name = db.Column(db.String(100), default=None)
   email = db.Column(db.String(200), default=None)
   phone = db.Column(db.String(20), unique=True, nullable=True)

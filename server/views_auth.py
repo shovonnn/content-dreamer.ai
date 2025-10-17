@@ -37,6 +37,10 @@ from werkzeug.security import generate_password_hash
 
 auth_views = Blueprint("auth_views", __name__)
 
+def _request_guest_id():
+    # Prefer header, fallback to query param
+    return (request.headers.get('X-Guest-Id') or request.args.get('guest_id') or '').strip() or None
+
 # Register endpoint
 @auth_views.route('/api/register', methods=['POST'])
 def register():
@@ -53,6 +57,12 @@ def register():
         return jsonify({"message": "Email already registered"}), 400
 
     new_user = User.create(name=name, email=email, password=password)
+    guest_id = _request_guest_id()
+    if guest_id:
+        new_user.guest_id = guest_id
+        db.session.add(new_user)
+        db.session.commit()
+
     tokens = create_tokens(new_user)
 
     return jsonify(tokens), 200
