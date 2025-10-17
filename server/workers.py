@@ -196,26 +196,79 @@ def generate_report(report_id: str):
                     Suggestion.add(rep.id, source_type, 'slop_concept', concept, rank, json.dumps(m), visibility)
                 except Exception as e:
                     logger.error(f"add_slop_concept failed: {e}")
+            
+            def top_replies_for(items, source_key, source_label=None):
+                candidates = []
+                for tw in items or []:
+                    try:
+                        base_text = getattr(tw, 'text', None) or (tw.get('text') if isinstance(tw, dict) else None)
+                        if not base_text:
+                            continue
+                        rep_text = thinker.witty_reply(product.name, product.description or "", base_text)
+                        if rep_text:
+                            score = min(1.0, max(0.1, len(rep_text) / 280))
+                            candidates.append((score, rep_text, tw))
+                    except Exception:
+                        continue
+                candidates.sort(key=lambda x: x[0], reverse=True)
+                for i, (_, r, tw) in enumerate(candidates[:10]):
+                    # Build meta with original tweet details
+                    try:
+                        if hasattr(tw, 'to_dict'):
+                            st = tw.to_dict()
+                        elif isinstance(tw, TweetSummary):
+                            st = {
+                                "text": tw.text,
+                                "user_name": tw.user_name,
+                                "like_count": tw.like_count,
+                                "retweet_count": tw.retweet_count,
+                                "reply_count": tw.reply_count,
+                            }
+                        elif isinstance(tw, dict):
+                            st = tw
+                        else:
+                            st = {"text": getattr(tw, 'text', None)}
+                    except Exception:
+                        st = {"text": getattr(tw, 'text', None)}
+                    add_reply(
+                        r,
+                        source_key,
+                        'subscriber',
+                        0.9 - i*0.1,
+                        {
+                            "reason": f"Reply crafted for a tweet under '{source_label}'" if source_label else f"Reply crafted for a tweet",
+                            "source_label": source_label,
+                            "source_tweet": st,
+                        },
+                    )
 
-            # tweet ideas from tech news articles
-            for tn in tech_news:
+
+            # 7b. Meme concepts per trending topic
+            for tp in topics[:10]:
                 try:
-                    tweets = thinker.tweets_for_topic(product.name, product.description or "", tn.title or "", tn.summary or "", n=2)
-                    for i, t in enumerate(tweets):
-                        add_tweet(
-                            t,
-                            'tech_news',
-                            'subscriber' if i >= 1 else 'guest',
-                            rank=0.6 - i*0.1,
+                    twts = tweets_by_topic.get(tp)
+                    context = None
+                    if twts:
+                        context = "\n".join([
+                            *(t.text for t in (twts.top or [])[:5]),
+                            *(t.text for t in (twts.latest or [])[:5])
+                        ])
+                    memes = thinker.meme_ideas_from_twitter(product.name, product.description or "", tp, context, n=4)
+                    for i, m in enumerate(memes):
+                        add_meme_concept(
+                            m.get('concept') or 'Meme idea',
+                            'trending_topic',
+                            'guest' if i < 1 else 'subscriber',
+                            rank=0.55 - i*0.05,
                             meta={
-                                "title": tn.title,
-                                "link": tn.link,
-                                "reason": f"Tweet idea based on tech news '{tn.title}'",
-                            },
+                                "topic": tp,
+                                "instructions": m.get('instructions'),
+                                "reason": f"Meme idea based on trending topic '{tp}'",
+                            }
                         )
                 except Exception as e:
                     logger.error(e)
-
+            
             # meme concepts from tech news articles
             for tn in tech_news:
                 try:
@@ -236,6 +289,14 @@ def generate_report(report_id: str):
                 except Exception as e:
                     logger.error(e)
 
+            # Top replies for group1 keywords
+            for kw in (prospect_keywords or [])[:10]:
+                ctx = tweets_by_kw_g1.get(kw)
+                if ctx:
+                    tws = (ctx.top or []) + (ctx.latest or [])
+                    random_tweets = random.sample(tws, 5) if len(tws) > 5 else tws
+                    top_replies_for(random_tweets, 'kw_g1', kw)
+
             # slop concepts from tech news articles
             for tn in tech_news:
                 try:
@@ -252,6 +313,26 @@ def generate_report(report_id: str):
                                 "instructions": m.get('instructions'),
                                 "reason": f"AI slop idea inspired by tech news '{tn.title}'",
                             }
+                        )
+                except Exception as e:
+                    logger.error(e)
+
+            
+            # tweet ideas from tech news articles
+            for tn in tech_news:
+                try:
+                    tweets = thinker.tweets_for_topic(product.name, product.description or "", tn.title or "", tn.summary or "", n=2)
+                    for i, t in enumerate(tweets):
+                        add_tweet(
+                            t,
+                            'tech_news',
+                            'subscriber' if i >= 1 else 'guest',
+                            rank=0.6 - i*0.1,
+                            meta={
+                                "title": tn.title,
+                                "link": tn.link,
+                                "reason": f"Tweet idea based on tech news '{tn.title}'",
+                            },
                         )
                 except Exception as e:
                     logger.error(e)
@@ -323,32 +404,6 @@ def generate_report(report_id: str):
                                 "topic": tp,
                                 "reason": f"Tweet idea based on trending topic '{tp}'",
                             },
-                        )
-                except Exception as e:
-                    logger.error(e)
-
-            # 7b. Meme concepts per trending topic
-            for tp in topics[:10]:
-                try:
-                    twts = tweets_by_topic.get(tp)
-                    context = None
-                    if twts:
-                        context = "\n".join([
-                            *(t.text for t in (twts.top or [])[:5]),
-                            *(t.text for t in (twts.latest or [])[:5])
-                        ])
-                    memes = thinker.meme_ideas_from_twitter(product.name, product.description or "", tp, context, n=4)
-                    for i, m in enumerate(memes):
-                        add_meme_concept(
-                            m.get('concept') or 'Meme idea',
-                            'trending_topic',
-                            'guest' if i < 1 else 'subscriber',
-                            rank=0.55 - i*0.05,
-                            meta={
-                                "topic": tp,
-                                "instructions": m.get('instructions'),
-                                "reason": f"Meme idea based on trending topic '{tp}'",
-                            }
                         )
                 except Exception as e:
                     logger.error(e)
@@ -496,50 +551,6 @@ def generate_report(report_id: str):
             #             logger.error(e)
 
             # 10. Witty replies for every fetched tweet (rank and keep top 5 per source)
-            def top_replies_for(items, source_key, source_label=None):
-                candidates = []
-                for tw in items or []:
-                    try:
-                        base_text = getattr(tw, 'text', None) or (tw.get('text') if isinstance(tw, dict) else None)
-                        if not base_text:
-                            continue
-                        rep_text = thinker.witty_reply(product.name, product.description or "", base_text)
-                        if rep_text:
-                            score = min(1.0, max(0.1, len(rep_text) / 280))
-                            candidates.append((score, rep_text, tw))
-                    except Exception:
-                        continue
-                candidates.sort(key=lambda x: x[0], reverse=True)
-                for i, (_, r, tw) in enumerate(candidates[:10]):
-                    # Build meta with original tweet details
-                    try:
-                        if hasattr(tw, 'to_dict'):
-                            st = tw.to_dict()
-                        elif isinstance(tw, TweetSummary):
-                            st = {
-                                "text": tw.text,
-                                "user_name": tw.user_name,
-                                "like_count": tw.like_count,
-                                "retweet_count": tw.retweet_count,
-                                "reply_count": tw.reply_count,
-                            }
-                        elif isinstance(tw, dict):
-                            st = tw
-                        else:
-                            st = {"text": getattr(tw, 'text', None)}
-                    except Exception:
-                        st = {"text": getattr(tw, 'text', None)}
-                    add_reply(
-                        r,
-                        source_key,
-                        'subscriber',
-                        0.9 - i*0.1,
-                        {
-                            "reason": f"Reply crafted for a tweet under '{source_label}'" if source_label else f"Reply crafted for a tweet",
-                            "source_label": source_label,
-                            "source_tweet": st,
-                        },
-                    )
 
             # from topics
             for tp in topics[:10]:
@@ -550,12 +561,6 @@ def generate_report(report_id: str):
                     random_tweets = random.sample(tws, 2) if len(tws) > 2 else tws
                     top_replies_for(random_tweets, 'trending_topic', tp)
             # from kw groups
-            for kw in (prospect_keywords or [])[:10]:
-                ctx = tweets_by_kw_g1.get(kw)
-                if ctx:
-                    tws = (ctx.top or []) + (ctx.latest or [])
-                    random_tweets = random.sample(tws, 5) if len(tws) > 5 else tws
-                    top_replies_for(random_tweets, 'kw_g1', kw)
             for kw in expanded_group2[:10]:
                 ctx = tweets_by_kw_g2.get(kw)
                 if ctx:
