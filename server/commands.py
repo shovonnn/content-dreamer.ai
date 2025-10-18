@@ -59,9 +59,9 @@ def sync_name_email():
 @click.option('--template', '-t')
 def send_email(email, name, subject, template):
   response = requests.post(
-		"https://api.mailgun.net/v3/mg.devassistant.ai/messages",
+		"https://api.mailgun.net/v3/mg.contentdreamer.ai/messages",
 		auth=("api", config.mailgun_api_key),
-		data={"from": "DevAssistant AI <support@devassistant.ai>",
+		data={"from": "ContentDreamer AI <support@contentdreamer.ai>",
 			"to": f"{name} <{email}>",
 			"subject": subject,
 			"template": template,
